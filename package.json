@@ -1,0 +1,62 @@
+{
+  "name": "dsh-remote-ssh",
+  "version": "0.3.0",
+  "description": "Run your DSH workspace on a remote host over SSH - connection sidebar, remote directory browser, per-session routing, agent ssh_exec/route-status; files and commands execute on your target while sessions, GUI and $DSH_HOME stay local.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "build:client": "node scripts/build-gui-client.mjs",
+    "test": "node scripts/test.mjs",
+    "install:dev": "node scripts/install.mjs"
+  },
+  "dependencies": {
+    "ssh2": "^1.17.0"
+  },
+  "peerDependencies": {
+    "react": ">=18.2.0",
+    "react-dom": ">=18.2.0",
+    "@deepseek-ai/cordis": ">=4.0.1",
+    "@deepseek-ai/schemastery": ">=3.18.1",
+    "@deepseek-ai/dsh-host-directory-picker": "*",
+    "@deepseek-ai/dsh-host-directory-picker-native": "*",
+    "@deepseek-ai/dsh-invariants": "*"
+  },
+  "peerDependenciesMeta": {
+    "react": { "optional": true },
+    "react-dom": { "optional": true },
+    "@deepseek-ai/cordis": { "optional": true },
+    "@deepseek-ai/schemastery": { "optional": true },
+    "@deepseek-ai/dsh-host-directory-picker": { "optional": true },
+    "@deepseek-ai/dsh-host-directory-picker-native": { "optional": true },
+    "@deepseek-ai/dsh-invariants": { "optional": true }
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./bundle.gui.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-client-ui-renderer",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-sidebar",
+        "@deepseek-ai/dsh-client-ui-workspace"
+      ]
+    }
+  },
+  "keywords": ["dsh-plugin", "dsh", "ssh", "remote-development", "deepseek-harness", "plugin", "remote-workspace"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aijunjiang/dsh-remote-ssh.git"
+  }
+}

@@ -30,6 +30,10 @@ const packageDir = join(root, 'packages', 'ssh-gui')
 const hostDir = join(checkout, 'packages', 'remote', 'ssh-gui')
 const tsdownCli = join(checkout, 'node_modules', 'tsdown', 'dist', 'run.mjs')
 
+// The bundle's module id: 'dsh-ssh-gui' for the dev package, or
+// 'dsh-remote-ssh' for the official root package (set DSH_GUI_BUNDLE_ID).
+const bundleId = process.env.DSH_GUI_BUNDLE_ID ?? 'dsh-ssh-gui'
+
 if (!existsSync(tsdownCli)) {
   console.error(`tsdown not found at ${tsdownCli} — point DSH_HARNESS_CHECKOUT at the harness checkout`)
   process.exit(1)
@@ -54,7 +58,7 @@ import { defineConfig } from 'tsdown'
 import { transform } from 'lightningcss'
 import { PLATFORM_MODULES, PRELOADED_CLIENT_EXTERNALS } from '../../client/web/src/platform.ts'
 
-const id = 'dsh-ssh-gui'
+const id = ${JSON.stringify(bundleId)}
 const externals = new Set([...PLATFORM_MODULES, ...PRELOADED_CLIENT_EXTERNALS])
 const CSS_VIRTUAL_PREFIX = '\\0dsh-css:'
 const CSS_VIRTUAL_SUFFIX = '.mjs'
@@ -146,15 +150,24 @@ try {
 
 const libDir = join(packageDir, 'lib')
 mkdirSync(libDir, { recursive: true })
-for (const file of ['client.js', 'client.js.map']) {
+const copyOut = (file) => {
   const built = join(hostDir, 'lib', file)
   if (!existsSync(built)) {
     rmSync(hostDir, { recursive: true, force: true })
     console.error(`expected artifact missing: ${built}`)
     process.exit(1)
   }
-  copyFileSync(built, join(libDir, file))
+  if (bundleId === 'dsh-ssh-gui') {
+    // Dev-tree package: keep packages/ssh-gui/lib in sync with its own id.
+    copyFileSync(built, join(libDir, file))
+  } else {
+    // Official root package ships its own bundle id at <repo>/lib; never
+    // overwrite the dev package's lib with a mismatched id.
+    mkdirSync(join(root, 'lib'), { recursive: true })
+    copyFileSync(built, join(root, 'lib', file))
+  }
 }
+for (const file of ['client.js', 'client.js.map']) copyOut(file)
 
 // -- 5. clean up ------------------------------------------------------------
 

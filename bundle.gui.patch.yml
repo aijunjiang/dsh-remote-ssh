@@ -1,0 +1,29 @@
+# dsh-remote-ssh official bundle — the SSH GUI user layer, applied by
+# `dsh plugin add <this repo>` at every boot with NO launch arguments.
+#
+# Mounts the connection registry and the /dsh-ssh RPC channel that the React
+# sidebar and remote directory browser drive, plus the agent-facing surface
+# (routing identity + usage guide in the runtime context, ssh_exec and
+# ssh_route_status tools, DSH_SSH_* shell env, route manifest). File and shell
+# tool seams stay LOCAL; see the README's "full mode" for moving ctx.fs and
+# ctx.subprocess to the remote host.
+
+# The web-app bundle's default directory chooser would fight the ssh-gui flow
+# for the directory-flow single slots; its browse backend keeps
+# ctx.directoryPicker (ui-workspace hard-injects it) alive without a surface.
+- id: directory-picker
+  name: '@deepseek-ai/dsh-host-directory-picker-auto'
+  disabled: true
+
+- insert:
+    # The disabled -auto row's backend half: browse capability, no client surface.
+    - id: directory-picker-browse
+      name: '@deepseek-ai/dsh-host-directory-picker-browse'
+      config:
+        maxEntries: 1000
+    # The official package root: connection registry + /dsh-ssh RPC + React
+    # sidebar + agent experience (dsh.client rides this package's declaration).
+    - id: ssh-web-channel
+      name: dsh-remote-ssh
+      config:
+        maxEntries: 1000
