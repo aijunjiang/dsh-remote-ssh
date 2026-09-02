@@ -1,0 +1,21 @@
+{
+  "name": "dsh-fs-ssh",
+  "description": "Helper-backed ctx.fs provider for DSH: one round trip per directory listing, streamed reads with a hard cap, atomic publication with compare-and-swap, and inode+nanosecond version tokens.",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "keywords": ["dsh", "deepseek-harness", "dsh-plugin", "ssh", "remote-development", "filesystem"],
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./package.json": "./package.json"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-fs": "^0.1.0-rc.6"
+  },
+  "license": "MIT"
+}

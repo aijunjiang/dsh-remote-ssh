@@ -1,0 +1,63 @@
+# dsh-ssh-gui composition patch: the USER layer of dsh-remote-ssh.
+#
+# Mounts the connection registry and the `/dsh-ssh` RPC channel that the React
+# sidebar (connection management) and remote directory browser drive. The
+# capability providers (fs-ssh / subprocess-ssh / remote-argv) come from the
+# parent composition patch (../cordis.patch.yml); this file only adds the GUI
+# face on top of whatever the connection layer is.
+#
+# WHY THE DEFAULT PICKER COMES DOWN:
+# The ssh-gui client bundle (declared on dsh-ssh-gui via dsh.client) registers
+# the SSH workspace flow — connection sidebar + remote directory browser —
+# into ui-workspace's TWO directory-flow holes
+# (`sidebar.workspaces.directoryFlow` and
+# `conversation.hero.workspace.directoryFlow`). Those holes are `single` slots:
+# a second registration throws. The web bundle's default `directory-picker`
+# row (`@deepseek-ai/dsh-host-directory-picker-auto`) dynamically mounts the
+# browse/native SURFACE into exactly those holes, so it must come down for the
+# ssh-gui surface to own the flow.
+#
+# The `-auto` row is replaced by its backend half alone:
+# `@deepseek-ai/dsh-host-directory-picker-browse` registers the `ctx.directoryPicker`
+# seam (browse capability) with NO client surface of its own (that package
+# declares no dsh.client). Keeping the seam alive matters: the host
+# `directoryPickerController` and, through it, the client `remote.directoryPicker`
+# service stay mounted, which ui-workspace's client hard-injects — without a
+# backend the whole workspaces UI would sit pending. The ssh-gui flow's LOCAL
+# pane browses through that same seam (`uiWorkspace.listDirectory`), and its
+# REMOTE pane browses through the /dsh-ssh channel's own SFTP-backed
+# browse.* endpoints, so no ssh-gui picker row is needed for this interaction.
+#
+# Deliberately NOT mounted here, yet:
+#   - `dsh-ssh-gui/picker` — the SFTP-backed directory-picker backend that
+#     would let the flow browse the REMOTE host through the seam itself. It
+#     injects `ctx.ssh` with the upstream connection-owner interface
+#     (`getSftp`/`endpoint`), which this repo's helper runtime does not yet
+#     provide on that seam; remote browsing currently rides the /dsh-ssh
+#     channel instead.
+
+# The default chooser row from the web-app bundle (it would mount a rival
+# surface into the directory-flow single slots and collide with ours).
+- id: directory-picker
+  name: '@deepseek-ai/dsh-host-directory-picker-auto'
+  disabled: true
+
+- insert:
+    # The -auto row's backend half, mounted directly: ctx.directoryPicker with
+    # the browse capability, no client surface (the ssh-gui flow owns the UI).
+    - id: directory-picker-browse
+      name: '@deepseek-ai/dsh-host-directory-picker-browse'
+      config:
+        maxEntries: 1000
+
+    # Connection registry (persisted to ~/.dsh/dsh-ssh-connections.json) plus
+    # the /dsh-ssh unary RPC channel: connections.list/add/test/remove/resolve,
+    # browse.home/list/mkdir, session.route. Loopback trust fence. Mounted by
+    # PACKAGE ROOT (not `dsh-ssh-gui/web`): client-modules only scans loader
+    # entries whose name resolves to a package root, and the root module
+    # re-exports web.ts's plugin surface (apply/inject/Config) alongside the
+    # client bundle declaration.
+    - id: ssh-web-channel
+      name: dsh-ssh-gui
+      config:
+        maxEntries: 1000

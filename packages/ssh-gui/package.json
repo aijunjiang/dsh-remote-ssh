@@ -1,0 +1,55 @@
+{
+  "name": "dsh-ssh-gui",
+  "description": "User layer for DSH remote workspaces: connection registry, /dsh-ssh RPC channel, remote directory browser, and the React sidebar — forked from UynajGI/dsh-ssh (MIT).",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "keywords": ["dsh", "deepseek-harness", "dsh-plugin", "ssh", "remote-development", "gui"],
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./web": "./src/web.ts",
+    "./picker": "./src/picker.ts",
+    "./registry": "./src/registry.ts",
+    "./runtime": "./src/runtime.ts",
+    "./connection": "./src/connection.ts",
+    "./transport": "./src/transport.ts",
+    "./plugin": "./src/plugin.ts",
+    "./client": {
+      "types": "./lib/types/client/index.d.ts",
+      "default": "./lib/client.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.gui.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-client-ui-renderer",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-sidebar",
+        "@deepseek-ai/dsh-client-ui-workspace"
+      ],
+      "platform": "web"
+    }
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-host-directory-picker": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-host-directory-picker-native": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-invariants": "^0.1.0-rc.6",
+    "@deepseek-ai/schemastery": "^3.18.1",
+    "ssh2": "^1.16.0"
+  },
+  "peerDependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "license": "MIT"
+}

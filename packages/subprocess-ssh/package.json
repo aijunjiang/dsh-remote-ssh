@@ -1,0 +1,26 @@
+{
+  "name": "dsh-subprocess-ssh",
+  "description": "Helper-backed ctx.subprocess provider for DSH: real remote pid/pgid, tree-scoped termination proven by quiescence, target-side output spills, and ripgrep argv translation so glob/grep keep working in a remote session.",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "keywords": ["dsh", "deepseek-harness", "dsh-plugin", "ssh", "remote-development", "subprocess"],
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./shell": "./src/shell.ts",
+    "./package.json": "./package.json"
+  },
+  "dependencies": {
+    "@deepseek-ai/dsh-bash-local": "^0.1.0-rc.6"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-subprocess": "^0.1.0-rc.6",
+    "@deepseek-ai/schemastery": "^3.18.0"
+  },
+  "license": "MIT"
+}

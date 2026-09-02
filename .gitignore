@@ -1,0 +1,18 @@
+# 依赖与机器本地安装（junction 进 profile node_modules，不入库）
+node_modules/
+
+# 开发流程 scratch/temp（临时宿主构建、探针等）
+.scratch-*/
+.scratch-reg.json
+.scratch-*
+
+# Python helper 字节码缓存
+__pycache__/
+*.pyc
+
+# 日志 / 系统垃圾
+*.log
+.DS_Store
+
+# npm 打包产物
+*.tgz

@@ -1,0 +1,21 @@
+{
+  "name": "dsh-ssh",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared ownership of one SSH connection and its remote helper daemon, so filesystem and subprocess providers inhabit one remote world.",
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./protocol": "./src/protocol.ts",
+    "./keys": "./src/keys.ts",
+    "./package.json": "./package.json"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "*",
+    "@deepseek-ai/schemastery": "*"
+  },
+  "dependencies": {
+    "ssh2": "1.17.0"
+  }
+}

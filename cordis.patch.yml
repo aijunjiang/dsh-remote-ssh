@@ -1,0 +1,172 @@
+# dsh-remote-ssh: move the workspace's file IO and command execution onto an SSH
+# target while sessions, GUI, and $DSH_HOME stay on this machine.
+#
+# Load with:
+#   pnpm dsh web --patch ./dsh-remote-ssh/cordis.patch.yml
+#
+# ---------------------------------------------------------------------------
+# THE ONE-WORLD INVARIANT
+# ---------------------------------------------------------------------------
+# `ctx.fs` and `ctx.subprocess` must name the SAME world. A composition that
+# moves only one of them produces a harness whose files are here and whose
+# commands are there: every relative path, every `git status`, every test run
+# reads one machine and writes the other. That is why this patch switches both
+# seams in one row set and refuses to be split, and why the owner's `cwd` and
+# `sandbox-policy.workspaceRoot` are both derived from ONE value below.
+#
+# ---------------------------------------------------------------------------
+# WHY THE LOCAL SANDBOX ROWS COME DOWN
+# ---------------------------------------------------------------------------
+# `ctx.sandbox` does not merely *fail* to fence a remote target — it breaks it.
+# `LocalSandboxProvider.confine()` REWRITES argv to run under a host launcher:
+# `bwrap`, `sandbox-exec`, or the Windows ACL runner
+# (packages/sandbox/sandbox-local/src/index.ts:306-328). `bash-sandbox` passes
+# every command through it (packages/shell/bash-sandbox/src/index.ts:178). Sent to
+# a Linux target from a Windows host, that argv names programs and paths that do
+# not exist there, so the command fails outright.
+#
+# Therefore: the sandbox rows are disabled and replaced by the UNCONFINED bash
+# executor, and this is stated plainly rather than hidden —
+#
+#   *** The host's sandbox policy does NOT constrain anything on the target. ***
+#   *** The remote account's own permissions are the only fence there.       ***
+#   *** Point this at a target whose account you are willing to let an agent ***
+#   *** operate with that account's full authority.                          ***
+#
+# `sandbox-policy` stays mounted (other rows read it) but its `workspaceRoot` is
+# repointed at the remote directory, so nothing can read a host path out of it and
+# believe it means something.
+
+# --- the local seams come down ---------------------------------------------
+
+# Local process execution.
+- id: subprocess
+  disabled: true
+
+# Local sandboxed filesystem (`SandboxedFileSystem extends LocalFileSystem`).
+- id: fs-sandbox
+  disabled: true
+
+# Host-launcher argv rewriting; unusable across machines (see above).
+- id: sandbox
+  disabled: true
+
+# Permission presets bundle a SANDBOX MODE per preset and hard-reject a shell
+# without one (`PermissionPresetService`: "the mounted bash executor does not
+# confine (no sandboxMode) ... is a misconfiguration"). With the sandbox rows
+# down there is no confining executor to promise, so the preset service itself
+# must come down; the settings row reads the session projection and simply
+# shows nothing when the service is absent.
+- id: permission
+  name: '@deepseek-ai/dsh-permission-presets'
+  disabled: true
+
+# Both shell stacks come down: the sandboxed executors depend on `ctx.sandbox`,
+# and the PowerShell twin is host-platform reasoning that a Linux target cannot
+# satisfy. The base bundle requires the twins to be switched together.
+- id: bash-sandbox
+  disabled: true
+
+- id: pwsh-sandbox
+  disabled: true
+
+# The model-facing shell tool must match the TARGET, not the host: a Windows host
+# ships `tool-pwsh` and disables `tool-bash`, and both decisions are wrong once
+# execution happens on Linux.
+- id: tool-pwsh
+  disabled: true
+
+- id: tool-bash
+  disabled: false
+
+# The web bundle's default directory chooser (`directory-picker-auto`) mounts a
+# client SURFACE into ui-workspace's two directory-flow single slots. The
+# ssh-gui sidebar registers into exactly those holes, and a single slot throws
+# on a second occupant — so the auto row must come down whenever the GUI is
+# mounted. It is replaced by its backend half alone (see below), which keeps
+# `ctx.directoryPicker` and therefore the client `remote.directoryPicker`
+# service alive (ui-workspace hard-injects it; dropping the backend would sit
+# the whole workspaces UI pending).
+- id: directory-picker
+  name: '@deepseek-ai/dsh-host-directory-picker-auto'
+  disabled: true
+
+# Repointed at the remote world. It no longer enforces anything for remote
+# operations; it must at least stop naming a host directory.
+- id: sandbox-policy
+  name: '@deepseek-ai/dsh-sandbox-policy'
+  config:
+    mode: !!js process.env.DSH_PERMISSION_MODE ?? 'workspace-write'
+    workspaceRoot: !!js process.env.DSH_REMOTE_CWD ?? '/root/workspace'
+
+# --- the remote seams go up -------------------------------------------------
+
+- insert:
+    # The shared connection owner: authentication ladder, helper provisioning,
+    # and the single multiplexed control channel every provider below rides.
+    #
+    # `cwd` and `sandbox-policy.workspaceRoot` above read the SAME environment
+    # variable on purpose: two spellings of one directory is how a one-world
+    # violation gets in.
+    - id: ssh
+      name: dsh-ssh
+      config:
+        host: !!js process.env.DSH_REMOTE_HOST
+        port: !!js Number(process.env.DSH_REMOTE_PORT ?? 22)
+        username: !!js process.env.DSH_REMOTE_USER
+        # First connection only; a key is provisioned immediately and later
+        # connections stop using it.
+        password: !!js process.env.DSH_REMOTE_PASSWORD
+        cwd: !!js process.env.DSH_REMOTE_CWD ?? '/root/workspace'
+        # Harness-generated identities live with the other local credentials,
+        # never inside a workspace. Composed from env rather than `require()`:
+        # a patch expression is evaluated as an expression, and `require` is not
+        # reliably in scope there.
+        identityDir: !!js (process.env.USERPROFILE ?? process.env.HOME ?? '.') + '/.dsh/remote-ssh'
+        provisionKey: true
+
+    # Remote command execution. Reports real remote pid/pgid, terminates
+    # tree-scoped with a quiescence proof, writes output spills ON THE TARGET,
+    # and translates the harness's packaged-ripgrep argv so `glob`/`grep` keep
+    # working (without it they execute a host binary path remotely and die 127).
+    - id: subprocess-ssh
+      name: dsh-subprocess-ssh
+      config:
+        # Absolute remote path of ripgrep. Unset means: discover it with
+        # `command -v rg`, then look for a staged copy.
+        ripgrepPath: !!js process.env.DSH_REMOTE_RIPGREP
+
+    # Remote file IO. One round trip per directory listing, streamed reads with a
+    # hard byte cap, atomic publication with compare-and-swap, and version tokens
+    # carrying inode + nanosecond precision.
+    - id: fs-ssh
+      name: dsh-fs-ssh
+
+    # `ctx.shell` for the target: the UNCONFINED bash executor, whose
+    # `inject = ['subprocess']` makes it run on whichever world that seam names —
+    # here, the remote one. Unconfined is the honest choice; see the sandbox note.
+    - id: shell-remote
+      name: dsh-subprocess-ssh/shell
+
+    # --- the user layer -------------------------------------------------------
+    # The connection registry + /dsh-ssh RPC channel (dsh-ssh-gui): connection
+    # management sidebar, remote directory browser, and ssh:// routing, all in
+    # the dsh web GUI. The React client rides the package's dsh.client.inject
+    # declaration. Mounted by PACKAGE ROOT: client-modules only scans entries
+    # whose name resolves to a package root (a `dsh-ssh-gui/web` subpath row is
+    # classified "not a client row" before resolution), and the root module
+    # re-exports web.ts's plugin surface.
+    - id: ssh-web-channel
+      name: dsh-ssh-gui
+      config:
+        maxEntries: 1000
+
+    # The disabled -auto row's backend half, mounted directly: the
+    # ctx.directoryPicker browse capability WITHOUT the client surface that
+    # would fight the ssh-gui flow for the directory-flow holes. The sidebar's
+    # local pane browses through this seam; its remote pane browses through the
+    # /dsh-ssh channel's SFTP-backed browse.* endpoints.
+    - id: directory-picker-browse
+      name: '@deepseek-ai/dsh-host-directory-picker-browse'
+      config:
+        maxEntries: 1000

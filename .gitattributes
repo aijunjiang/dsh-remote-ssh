@@ -1,0 +1,20 @@
+# 统一行尾：仓库内与检出均为 LF（跨平台协作，Python helper 在远端 Linux 上跑）
+* text=auto eol=lf
+
+# 源码与文档：强制 LF，避免 Windows 检出 CRLF 造成 diff 噪音
+*.ts      text eol=lf
+*.tsx     text eol=lf
+*.js      text eol=lf
+*.mjs     text eol=lf
+*.cjs     text eol=lf
+*.json    text eol=lf
+*.md      text eol=lf
+*.yml     text eol=lf
+*.yaml    text eol=lf
+*.css     text eol=lf
+*.py      text eol=lf
+
+# 二进制 / 生成物
+*.pyc     binary
+*.map     binary
+*.tgz     binary
