@@ -28,28 +28,31 @@
 - 本机：DSH（deepseek-harness）与 Node ≥ 22
 - 远端：可 SSH 登录的账号，主机上有 `python3` 与 `bash`（helper 依赖）
 
-仓库是**多包 monorepo**（包之间互相相对引用），安装 = 克隆 + 把包链接进 DSH profile 的 loader 树：
+仓库是**多包 monorepo**（包之间互相相对引用），所以发布安装走官方兼容的“整仓链接 + profile 自动注册”，**装完重启即可，启动命令不用加任何参数**：
 
 ```bash
 git clone https://github.com/aijunjiang/dsh-remote-ssh
 cd dsh-remote-ssh
 
-# 把 4 个包链接进 profile 的 node_modules（幂等，可重复执行）
-node scripts/install.mjs                     # 默认 $DSH_HOME，回退 ~/.dsh
-node scripts/install.mjs --home /path/to/.dsh # 或显式指定 DSH home
+# 一条命令：链接 4 个包 + 把 SSH GUI 用户层注册进 web profile
+# （幂等，可重复执行）
+node scripts/install.mjs
+# 选项：--home <dsh home> | --profile <name>（默认 web）| --remove（卸载）
 
-# 卸载：node scripts/install.mjs --remove
+# 然后照常启动，不加 --patch：
+pnpm dsh web
 ```
 
-> Windows 下创建目录 junction，Linux/macOS 创建符号链接。脚本只管理指向本仓库的链接，不会删除其它内容。
+> 安装脚本做了什么：把 `packages/*` 用 junction/符号链接挂进 `<dsh home>/profiles/node_modules`，并在 `<dsh home>/profiles/web/cordis.patch.yml` 末尾写入一段带管理标记的 GUI 用户层（每次启动自动应用）。卸载用 `node scripts/install.mjs --remove`（同时移除段落与链接，不影响其它插件）。
 
-启动：
+启动形态：
 
 ```bash
-# A. 连接管理 + 远端目录浏览 + agent 远端执行工具（不改动本机 fs/subprocess）
-pnpm dsh web --patch <repo>/packages/ssh-gui/cordis.gui.patch.yml
+# A.（默认，安装脚本注册的就是这层）SSH GUI 用户层：连接管理 + 远端目录浏览 +
+#    agent 路由身份/指南 + ssh_exec/ssh_route_status。本机 fs/subprocess 保持不变。
+pnpm dsh web
 
-# B. 完整远端工作区：本机文件与命令整体切到远端（见「完整模式」）
+# B. 完整远端工作区：本机文件与命令整体切到远端（另起实例跑，勿装在常用实例上）
 export DSH_REMOTE_HOST=your-host
 export DSH_REMOTE_USER=your-user
 export DSH_REMOTE_PASSWORD=your-password      # 仅首次；随后自动改用密钥

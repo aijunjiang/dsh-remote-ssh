@@ -1,26 +1,37 @@
 #!/usr/bin/env node
 /**
- * dsh-remote-ssh installer: link the plugin packages into a DSH profile's
- * loader tree so a `--patch` boot can resolve them by name.
+ * dsh-remote-ssh installer: make the plugin usable on a DSH profile with ONE
+ * command and NO extra launch arguments.
  *
- * The packages form a MONOREPO — subprocess-ssh/fs-ssh/ssh-gui import each
- * other by relative path (../../ssh/src/...), so they must stay inside this
- * tree. This script creates directory junctions (Windows) or symlinks (POSIX)
- * from `<dsh home>/profiles/node_modules/<pkg>` to `./packages/<pkg>`; the
- * loader resolves names from the profile tree and the relative imports keep
- * resolving inside the repository.
+ * What it does:
+ *  1. Links the monorepo packages into `<dsh home>/profiles/node_modules`
+ *     (the loader resolves row names from there). The packages import each
+ *     other by relative path, so they must stay inside this tree — links keep
+ *     that true (junction on Windows, symlink elsewhere).
+ *  2. Registers the SSH GUI user layer in the profile's own patch file
+ *     (`<dsh home>/profiles/<profile>/cordis.patch.yml`). That layer applies
+ *     automatically at every boot, so `pnpm dsh web` works with NO --patch.
  *
- * Usage (from anywhere; run with node):
- *   node scripts/install.mjs                  # link into ~/.dsh (or $DSH_HOME)
- *   node scripts/install.mjs --home C:\x\.dsh  # explicit DSH home
- *   node scripts/install.mjs --remove         # unlink the packages again
+ * Usage:
+ *   node scripts/install.mjs                       # link + register (default)
+ *   node scripts/install.mjs --home C:\x\.dsh      # explicit DSH home
+ *   node scripts/install.mjs --profile headless    # other profile name (default web)
+ *   node scripts/install.mjs --no-patch            # link only, skip patch file
+ *   node scripts/install.mjs --remove              # remove rows + unlink packages
  *
- * Idempotent: re-running reports already-linked packages and only repairs
- * stale or wrong-target links. Never deletes anything outside this repo's
- * package directories.
+ * Idempotent and removable. Only touches files this repo owns: the package
+ * links inside the profile tree and the marked patch segment.
  */
 
-import { existsSync, lstatSync, mkdirSync, realpathSync, rmSync, symlinkSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs'
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { homedir } from 'node:os'
 import { fileURLToPath } from 'node:url'
@@ -36,9 +47,44 @@ const PACKAGES = {
   'ssh-gui': 'dsh-ssh-gui',
 }
 
+/** Canonical markers around the profile-patch segment this script owns. */
+const SEGMENT_START = '# ===== dsh-remote-ssh (managed by scripts/install.mjs) ====='
+const SEGMENT_END = '# ===== /dsh-remote-ssh (managed by scripts/install.mjs) ====='
+
+/** The SSH GUI user layer, applied automatically at boot (no --patch needed). */
+function profileSegment(repoPath) {
+  return [
+    SEGMENT_START,
+    '# dsh-remote-ssh GUI user layer (connection sidebar, remote browser, agent tools).',
+    `# repo: ${repoPath}`,
+    '# Docs: https://github.com/aijunjiang/dsh-remote-ssh (see README).',
+    '# Remove with: node scripts/install.mjs --remove',
+    '',
+    '# The web-app default directory chooser would fight the ssh-gui flow for the',
+    '# directory-flow slots; its browse backend keeps ctx.directoryPicker alive.',
+    '- id: directory-picker',
+    "  name: '@deepseek-ai/dsh-host-directory-picker-auto'",
+    '  disabled: true',
+    '',
+    '- insert:',
+    "    - id: directory-picker-browse",
+    "      name: '@deepseek-ai/dsh-host-directory-picker-browse'",
+    '      config:',
+    '        maxEntries: 1000',
+    "    - id: ssh-web-channel",
+    '      name: dsh-ssh-gui',
+    '      config:',
+    '        maxEntries: 1000',
+    SEGMENT_END,
+    '',
+  ].join('\n')
+}
+
 function parseArgs(argv) {
   let home
+  let profile = 'web'
   let remove = false
+  let noPatch = false
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i]
     if (arg === '--home') {
@@ -46,19 +92,24 @@ function parseArgs(argv) {
       if (value === undefined) throw new Error('--home needs a path')
       home = resolve(value)
       i += 1
+    } else if (arg === '--profile') {
+      const value = argv[i + 1]
+      if (value === undefined || value === '') throw new Error('--profile needs a name')
+      profile = value
+      i += 1
     } else if (arg === '--remove') {
       remove = true
+    } else if (arg === '--no-patch') {
+      noPatch = true
     } else {
       throw new Error(`unknown argument: ${arg}`)
     }
   }
   const dshHome = home ?? process.env.DSH_HOME ?? join(homedir(), '.dsh')
-  return { target: join(dshHome, 'profiles', 'node_modules'), remove }
+  return { target: join(dshHome, 'profiles', 'node_modules'), patchFile: join(dshHome, 'profiles', profile, 'cordis.patch.yml'), remove, noPatch }
 }
 
 function linkType() {
-  // Windows directory junctions need no elevation; POSIX uses a directory
-  // symlink with the same loader behaviour.
   return process.platform === 'win32' ? 'junction' : 'dir'
 }
 
@@ -70,15 +121,64 @@ function linkTarget(linkPath) {
   }
 }
 
-/** Whether a link target lives inside this repository (safe to remove). */
 function isInsideRepo(path) {
   if (path === undefined) return false
   const rel = relative(repoRootReal, path)
   return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel))
 }
 
-const { target, remove } = parseArgs(process.argv.slice(2))
+/** Replace the owned segment in a patch file (creates the file when absent). */
+function upsertSegment(file, repoPath) {
+  const segment = profileSegment(repoPath)
+  let existing = ''
+  try {
+    existing = readFileSync(file, 'utf8')
+  } catch {
+    existing = ''
+  }
+  const startAt = existing.indexOf(SEGMENT_START)
+  const endAt = existing.indexOf(SEGMENT_END)
+  if (startAt >= 0 && endAt > startAt) {
+    const next = existing.slice(endAt + SEGMENT_END.length)
+    const prefix = existing.slice(0, startAt).replace(/\s+$/u, '')
+    const rewritten = `${prefix}\n\n${segment}${next.replace(/^\r?\n/u, '')}`
+    writeFileSync(file, rewritten, 'utf8')
+    console.log(`[patch ] ${file}: segment updated`)
+    return
+  }
+  const tail = existing.replace(/\s+$/u, '')
+  writeFileSync(file, `${tail.length > 0 ? `${tail}\n\n` : ''}${segment}`, 'utf8')
+  console.log(`[patch ] ${file}: GUI layer registered (applies on next boot; no --patch needed)`)
+}
+
+/** Remove the owned segment from a patch file. */
+function removeSegment(file) {
+  let existing = ''
+  try {
+    existing = readFileSync(file, 'utf8')
+  } catch {
+    existing = ''
+  }
+  const startAt = existing.indexOf(SEGMENT_START)
+  const endAt = existing.indexOf(SEGMENT_END)
+  if (startAt < 0 || endAt <= startAt) {
+    console.log(`[skip ] patch: ${file} has no dsh-remote-ssh segment`)
+    return
+  }
+  const next = existing.slice(endAt + SEGMENT_END.length)
+  const prefix = existing.slice(0, startAt).replace(/\s+$/u, '')
+  writeFileSync(file, `${prefix}${next.replace(/^\s*\r?\n/u, '')}`, 'utf8')
+  console.log(`[patch ] ${file}: segment removed`)
+}
+
+const { target, patchFile, remove, noPatch } = parseArgs(process.argv.slice(2))
 mkdirSync(target, { recursive: true })
+
+if (remove) {
+  if (!noPatch) removeSegment(patchFile)
+} else if (!noPatch) {
+  upsertSegment(patchFile, repoRoot)
+}
 
 const missing = []
 for (const [dir, name] of Object.entries(PACKAGES)) {
@@ -123,6 +223,6 @@ if (missing.length > 0) {
   process.exit(1)
 }
 
-console.log(`\ndone. loader tree: ${target}`)
-console.log('start a GUI-with-remote session, e.g.:')
-console.log('  pnpm dsh web --patch <this repo>/cordis.patch.yml')
+console.log(remove
+  ? '\ndone. dsh-remote-ssh removed from the profile; restart dsh to unload it.'
+  : '\ndone. Restart dsh (same command, no extra args) and the SSH GUI layer is live.')
