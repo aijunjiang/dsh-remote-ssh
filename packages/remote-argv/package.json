@@ -1,18 +1,27 @@
 {
-  "name": "dsh-remote-argv",
-  "description": "Argv translation for a remote execution world: detects the harness's packaged ripgrep binary, maps host placeholder paths onto remote paths, and resolves ripgrep on the target.",
-  "version": "0.1.0",
-  "private": true,
-  "type": "module",
-  "keywords": ["dsh", "deepseek-harness", "ssh", "ripgrep"],
-  "engines": {
-    "node": "^22.19.0 || >=24.0.0"
-  },
-  "main": "./src/index.ts",
-  "exports": {
-    ".": "./src/index.ts",
-    "./ripgrep": "./src/ripgrep.ts",
-    "./package.json": "./package.json"
-  },
-  "license": "MIT"
+    "name":  "dsh-remote-argv",
+    "description":  "Argv translation for a remote execution world: detects the harness\u0027s packaged ripgrep binary, maps host placeholder paths onto remote paths, and resolves ripgrep on the target.",
+    "version":  "0.2.0",
+    "private":  true,
+    "type":  "module",
+    "keywords":  [
+                     "dsh",
+                     "deepseek-harness",
+                     "ssh",
+                     "ripgrep"
+                 ],
+    "engines":  {
+                    "node":  "^22.19.0 || \u003e=24.0.0"
+                },
+    "main":  "./src/index.ts",
+    "exports":  {
+                    ".":  "./src/index.ts",
+                    "./ripgrep":  "./src/ripgrep.ts",
+                    "./package.json":  "./package.json"
+                },
+    "license":  "MIT",
+    "repository":  {
+                       "type":  "git",
+                       "url":  "https://github.com/aijunjiang/dsh-remote-ssh.git"
+                   }
 }
