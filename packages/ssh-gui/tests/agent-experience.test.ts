@@ -225,4 +225,64 @@ const fakeConnection = (overrides: Partial<{ host: string; port: number; usernam
   }
 }
 
+// -- regression: services mounted AFTER installAgentExperience --------------
+// ctx.plugin mounts through a fiber, so sshRegistry may not exist when apply
+// runs. Services must be read lazily, never captured once at install.
+
+{
+  const previousHome = process.env.DSH_HOME
+  const scratch = mkdtempSync(join(tmpdir(), 'dsh-routes-'))
+  process.env.DSH_HOME = scratch
+  try {
+    const routedCwd = sshRoutePlaceholder('c1', '/home/haitang/JunHeAssemblyLine')
+    const ctx = new Context()
+    let identity: { text: unknown } | undefined
+    let execTool: { name: string; execute: (a: unknown, e: unknown) => Promise<unknown> } | undefined
+    let statusTool: { name: string; execute: (a: unknown, e: unknown) => Promise<unknown> } | undefined
+
+    ctx.provide('systemPrompt')
+    ctx.systemPrompt = {
+      context: (registration: { name: string; text: unknown }) => {
+        if (registration.name === 'ssh:route') identity = registration
+        return () => undefined
+      },
+    }
+    ctx.provide('tools')
+    ctx.tools = {
+      register: (definition: { name: string; execute: (a: unknown, e: unknown) => Promise<unknown> }) => {
+        if (definition.name === 'ssh_exec') execTool = definition
+        if (definition.name === 'ssh_route_status') statusTool = definition
+        return () => undefined
+      },
+    }
+
+    // Installed BEFORE the registry exists — the exact boot ordering bug.
+    installAgentExperience(ctx)
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    const render = identity!.text as (context: unknown) => string
+    const before = render({ agent: { session: { header: { cwd: routedCwd } } } })
+    assert.ok(before.includes('NOT resolvable'), 'before the registry mounts, a routed cwd degrades honestly')
+
+    // The registry mounts later (async ctx.plugin).
+    ctx.provide('sshRegistry')
+    ctx.sshRegistry = {
+      get: () => fakeConnection(),
+      list: () => [{ id: 'c1', label: 'dev box', host: '192.168.10.125', port: 22, username: 'amax' }],
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10))
+
+    const after = render({ agent: { session: { header: { cwd: routedCwd } } } })
+    assert.ok(after.includes('amax@192.168.10.125'), 'lazy registry lookup must resolve once the service mounts')
+    assert.ok(!after.includes('NOT resolvable'), 'no degraded warning once the route resolves')
+
+    const status = await statusTool!.execute({}, { agent: { session: { header: { cwd: routedCwd } } }, signal: new AbortController().signal })
+    assert.ok(String(status).includes('SSH route `c1`'), 'ssh_route_status must see the late-mounted registry')
+    assert.ok(execTool !== undefined, 'ssh_exec still registered')
+  } finally {
+    if (previousHome === undefined) delete process.env.DSH_HOME
+    else process.env.DSH_HOME = previousHome
+    rmSync(scratch, { recursive: true, force: true })
+  }
+}
+
 console.log('ssh-gui agent-experience: ok — routed/local/degraded contexts, DSH_SSH_* env, ssh_exec and ssh_route_status verified')

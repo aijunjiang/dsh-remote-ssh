@@ -398,16 +398,21 @@ export function installAgentExperience(ctx: Context): void {
   const disposers: Array<() => void> = []
   ctx.effect(() => () => { for (const dispose of disposers) dispose() }, 'ssh-agent-experience: dispose')
 
-  const sessions = ctx.get('sessions') as SessionsLike | undefined
-  const registry = ctx.get('sshRegistry') as RegistryLike | undefined
+  // Services must be read LAZILY, not captured at install: ctx.plugin(SshRegistry)
+  // (and the capability providers) mount through a fiber, so they may not be
+  // visible yet when apply runs. A once-captured `undefined` here silently
+  // degraded every routed session ("registry not mounted") — exactly the field
+  // bug this lazy access fixes.
+  const sessionsOf = (): SessionsLike | undefined => ctx.get('sessions') as SessionsLike | undefined
+  const registryOf = (): RegistryLike | undefined => ctx.get('sshRegistry') as RegistryLike | undefined
   const router = new SshHelperRouter(ctx)
   ctx.effect(() => () => { void router.dispose() }, 'ssh-agent-experience: helper router')
-  const viewOf = (agent: AgentLike | undefined): SessionRouteView => routeViewFor(sessions, registry, agent)
+  const viewOf = (agent: AgentLike | undefined): SessionRouteView => routeViewFor(sessionsOf(), registryOf(), agent)
 
   // P0-1 — routing identity (or an explicit degraded warning) in the runtime
   // context, plus the routing guide. Local sessions render empty and both
-  // blocks are omitted.
-  const world = remoteWorldOf(ctx)
+  // blocks are omitted. Provider-world detection is lazy too: the capability
+  // rows may mount after this plugin's apply.
   const systemPrompt = ctx.get('systemPrompt') as SystemPromptLike | undefined
   if (systemPrompt !== undefined) {
     const disposeIdentity = systemPrompt.context({
@@ -425,7 +430,7 @@ export function installAgentExperience(ctx: Context): void {
       order: USAGE_CONTEXT_ORDER,
       text: (context) => {
         const view = viewOf(context.agent)
-        return view.kind === 'route' ? usageContextText(view.facts, world) : ''
+        return view.kind === 'route' ? usageContextText(view.facts, remoteWorldOf(ctx)) : ''
       },
     })
     disposers.push(disposeUsage)
@@ -487,7 +492,7 @@ export function installAgentExperience(ctx: Context): void {
         schema: { type: 'string' },
         render: (_args, value) => [{ type: 'text', text: String(value) }],
       },
-      execute: async (args, exec) => await executeSshExec(sessions, registry, router, args as SshExecArgs, exec),
+      execute: async (args, exec) => await executeSshExec(sessionsOf(), registryOf(), router, args as SshExecArgs, exec),
     })
     disposers.push(disposeExec)
 
@@ -511,7 +516,7 @@ export function installAgentExperience(ctx: Context): void {
         schema: { type: 'string' },
         render: (_args, value) => [{ type: 'text', text: String(value) }],
       },
-      execute: async (args, exec) => await executeRouteStatus(sessions, registry, args as RouteStatusArgs, exec),
+      execute: async (args, exec) => await executeRouteStatus(sessionsOf(), registryOf(), args as RouteStatusArgs, exec),
     })
     disposers.push(disposeStatus)
   }
