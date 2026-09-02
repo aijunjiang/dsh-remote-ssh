@@ -31,6 +31,14 @@ export interface RemoteExecResult {
   /** The direct child's real remote pid and process-group id. */
   pid: number
   pgid: number
+  /** Whether the end sentinel was observed on stdout (output integrity proof). */
+  sentinelSeen: boolean
+  /**
+   * exit 0 with ZERO captured output on both streams, no truncation/timeout,
+   * and NO end sentinel: the dangerous "looks like a legitimately empty
+   * result" loss mode. Never treat that as an authoritative empty answer.
+   */
+  silentLoss: boolean
 }
 
 /** Options for one remote command. */
@@ -52,6 +60,38 @@ const DEFAULT_PATH = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/b
 
 /** Grace between TERM and KILL when stopping an over-cap or cancelled group. */
 const KILL_GRACE_MS = 2_000
+
+/**
+ * Wrap a caller command with an end sentinel so an empty result can be told
+ * apart from a lost one: bash prints `<token>=<rc>` as its last stdout line.
+ * The sentinel also survives pipes (`cmd | head`) — when head closes early,
+ * bash dies on SIGPIPE BEFORE the sentinel, which is itself the signal that
+ * the captured output is intentionally partial.
+ */
+export function buildWrappedCommand(command: string): { wrapped: string; token: string } {
+  const token = `__DSHX_${Math.random().toString(36).slice(2, 10)}`
+  const wrapped = [
+    command,
+    `__DSHX_RC=$?`,
+    `printf '\\n${token}=%s\\n' "$__DSHX_RC"`,
+    'exit "$__DSHX_RC"',
+  ].join('\n')
+  return { wrapped, token }
+}
+
+/**
+ * Parse the sentinel out of captured stdout. The sentinel line is removed so
+ * command output is returned unchanged when it is present.
+ */
+export function parseSentinelExit(
+  output: string,
+  token: string,
+): { seen: boolean; exit: number | null; stdout: string } {
+  const pattern = new RegExp(`\\n${token}=(\\d+)\\r?\\n?$`)
+  const match = pattern.exec(output)
+  if (match === null) return { seen: false, exit: null, stdout: output }
+  return { seen: true, exit: Number(match[1]), stdout: output.slice(0, output.length - match[0].length) }
+}
 
 /**
  * Run one command to completion on the session's target.
@@ -80,7 +120,10 @@ export async function runRemoteCommand(
   }
 
   const cap = options.maxBytes ?? 256 * 1024
-  const argv = ['bash', '-c', options.command]
+  // End-sentinel wrapper: an exit-0 empty result is only trustworthy when the
+  // sentinel line came back with it.
+  const { wrapped, token } = buildWrappedCommand(options.command)
+  const argv = ['bash', '-c', wrapped]
   const stdoutChunks: Buffer[] = []
   const stderrChunks: Buffer[] = []
   let outBytes = 0
@@ -169,16 +212,29 @@ export async function runRemoteCommand(
         signal = sig
       },
       onGone() {
+        const stdoutRaw = Buffer.concat(stdoutChunks).toString('utf8')
+        const parsed = parseSentinelExit(stdoutRaw, token)
+        const stderr = Buffer.concat(stderrChunks).toString('utf8')
+        // When the sentinel came back, treat ITS rc as authoritative (it is the
+        // shell's own last word); a bash killed by SIGPIPE after a `| head`
+        // reports no sentinel and a signal/exit the caller already sees.
+        const code = parsed.seen && parsed.exit !== null ? parsed.exit : exitCode
+        const silentLoss = code === 0
+          && parsed.seen === false
+          && !truncatedOut && !truncatedErr && !timedOut
+          && parsed.stdout.length === 0 && stderr.length === 0
         settle({
-          exitCode,
+          exitCode: code,
           signal,
-          stdout: Buffer.concat(stdoutChunks).toString('utf8'),
-          stderr: Buffer.concat(stderrChunks).toString('utf8'),
+          stdout: parsed.stdout,
+          stderr,
           truncatedOut,
           truncatedErr,
           timedOut,
           pid,
           pgid,
+          sentinelSeen: parsed.seen,
+          silentLoss,
         })
       },
     })

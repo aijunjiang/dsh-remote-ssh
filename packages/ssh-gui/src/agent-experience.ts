@@ -200,8 +200,12 @@ function usageContextText(facts: RouteFacts, world: RemoteWorld): string {
   return [
     'Working in this SSH session:',
     `- Route \`${facts.id}\` → ${facts.username}@${facts.host} (remote cwd ${facts.path}). ${channel}`,
-    '- Run remote commands with ssh_exec: pass the WHOLE script as one `command` string (no local quoting layer), locale is fixed to C, output is capped and truncation is marked. Do NOT hand-roll a local ssh.exe/ssh call — on Windows confined sessions it cannot spawn and wastes turns/approvals.',
-    '- Never treat mirrored dsh-ssh-routes/<id>/... contents as project truth: they are placeholders. Read/write through the remote world (ssh_exec, or the remote file tools when the providers are mounted).',
+    '- Run remote commands with ssh_exec: pass the WHOLE script as one `command` string (no local quoting layer), locale is fixed to C.',
+    '- Output is capped at 256 KiB per stream (stdout/stderr); truncation is marked. The engine verifies every result with an end sentinel: an exit-0 "(no output)" result marked sentinel-verified is genuinely empty; if the result says output was lost, it auto-retried and you must NOT treat an empty result as fact — re-run or narrow the command.',
+    '- Do NOT hand-roll a local ssh.exe/ssh call — on Windows confined sessions it cannot spawn and wastes turns/approvals. ssh_exec calls are serialized per step and reuse one helper connection per route; run multiple commands inside one call when you can.',
+    '- Never treat mirrored dsh-ssh-routes/<id>/... contents as project truth: they are placeholders. Read/write through the remote world.',
+    '- Remote READS when the providers are not mounted: text with `cat PATH`; window big files with `sed -n \'200,400p\' PATH` (output has no line numbers). Never use the LOCAL read/glob/grep/write/edit tools on remote paths — they hit the empty placeholders and silently "succeed" on the wrong machine.',
+    '- Remote WRITES when the providers are not mounted: quoted heredoc through ssh_exec, e.g. command: `cat > /home/haitang/x/notes.txt <<\'EOF\'\\n…content…\\nEOF` (use absolute POSIX paths). Do NOT use the local write/edit tools for remote files.',
     '- The remote world is fenced by the remote account\'s own permissions only — no local sandbox applies on the target. Host-local concerns (approval, credentials, GUI, $DSH_HOME) still live on this machine.',
     '- If a route errors or files look gone: run ssh_route_status (lists known connections and the manifest path), have the connection re-added/tested in the sidebar, then retry. Never guess the target by enumerating ~/.ssh/config.',
     '- Routed shell executions carry DSH_SSH_ROUTE_ID/HOST/USER/PORT/REMOTE_CWD — prefer DSH_SSH_REMOTE_CWD over path guessing.',
@@ -228,7 +232,7 @@ function manifestHint(registry: RegistryLike | undefined): string {
 }
 
 /** Render one non-error `ssh_exec` outcome as model-facing text. */
-function renderResult(result: Awaited<ReturnType<typeof runRemoteCommand>>): string {
+function renderResult(result: Awaited<ReturnType<typeof runRemoteCommand>>, retried: boolean): string {
   const head: string[] = []
   if (result.timedOut) head.push('[timed out; process group terminated]')
   const exit = result.exitCode === null
@@ -238,10 +242,21 @@ function renderResult(result: Awaited<ReturnType<typeof runRemoteCommand>>): str
   head.push(`ssh_exec ${exit} (${pid})`)
   const body: string[] = []
   if (result.stdout.length > 0) body.push(result.stdout.trimEnd())
-  else if (result.stderr.length === 0) body.push('(no output)')
-  if (result.truncatedOut) body.push('[stdout truncated at the remote-exec cap]')
+  else if (result.stderr.length === 0 && !result.silentLoss) {
+    body.push(result.sentinelSeen ? '(no output — sentinel-verified empty)' : '(no output)')
+  }
+  if (result.truncatedOut) body.push('[stdout truncated at the 256 KiB cap]')
   if (result.stderr.length > 0) body.push(result.stderr.trimEnd())
-  if (result.truncatedErr) body.push('[stderr truncated at the remote-exec cap]')
+  if (result.truncatedErr) body.push('[stderr truncated at the 256 KiB cap]')
+
+  // Integrity markers: an exit-0 empty result is only authoritative when the
+  // end sentinel proves bash reached the end of the command line.
+  if (result.silentLoss) {
+    body.push('[CRITICAL: exit 0 with zero captured output and no end sentinel — the output was LOST,'
+      + ` this is NOT a real empty result${retried ? ' (both attempts lost)' : ''}. Re-run the command or narrow it.]`)
+  } else if (result.exitCode === 0 && result.sentinelSeen === false && !result.timedOut) {
+    body.push('[no end sentinel observed — captured output may be partial (e.g. a pipe such as `| head` closed early)]')
+  }
   return `${head.join('\n')}${body.length === 0 ? '' : `\n${body.join('\n')}`}`
 }
 
@@ -323,8 +338,12 @@ async function executeSshExec(
     return failureText(error)
   }
   try {
-    const result = await runRemoteCommand(session, { command, cwd: base, signal })
-    return renderResult(result)
+    const first = await runRemoteCommand(session, { command, cwd: base, signal })
+    if (!first.silentLoss) return renderResult(first, false)
+    // exit 0 with zero bytes and no sentinel: treat as a lost output and retry
+    // once before reporting anything.
+    const second = await runRemoteCommand(session, { command, cwd: base, signal })
+    return renderResult(second, true)
   } catch (error) {
     return `${failureText(error)} (if the route is offline, reconnect it first; see ssh_route_status)`
   }
@@ -466,8 +485,11 @@ export function installAgentExperience(ctx: Context): void {
       description:
         'Run one command on the SSH host of the CURRENT session\'s route (the route shown in the runtime '
         + 'context as `ssh://<id>` / "SSH route <id>"), in that route\'s remote working directory. '
-        + 'Executes over the plugin\'s in-process SSH channel (no local ssh.exe, no sandbox conflict), '
-        + 'locale fixed to C, non-interactive, output capped with truncation marked. '
+        + 'Executes over the plugin\'s in-process SSH channel (no local ssh.exe, no sandbox conflict); '
+        + 'locale fixed to C; non-interactive; serialized per step; one helper connection reused per route. '
+        + 'Output capped at 256 KiB per stream (stdout/stderr) with truncation marked; every result is checked '
+        + 'against an end sentinel — a lost-output (exit 0 with no bytes and no sentinel) auto-retries once, and '
+        + 'an exit-0 "(no output)" marked sentinel-verified is genuinely empty. '
         + 'Use ONLY when the runtime context shows this session is on an SSH route; on a local session the tool refuses, '
         + 'and on a degraded (spelled-but-unresolvable) route it says so and lists recovery steps. '
         + 'When a route fails, call ssh_route_status first. '

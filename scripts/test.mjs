@@ -24,6 +24,7 @@ const suites = [
   'packages/fs-ssh/tests/provider.test.ts',
   'packages/ssh-gui/tests/smoke.ts',
   'packages/ssh-gui/tests/agent-experience.test.ts',
+  'packages/ssh-gui/tests/remote-exec-sentinel.test.ts',
   'packages/ssh-gui/tests/routes-manifest.test.ts',
   'packages/ssh-gui/tests/backend.test.ts',
   'packages/ssh-gui/tests/helper-session.test.ts',

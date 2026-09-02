@@ -179,6 +179,8 @@ const fakeConnection = (overrides: Partial<{ host: string; port: number; usernam
       'usage guide must state when providers are local and mirrors are placeholders')
     assert.ok(/guess the target/u.test(routedUsage), 'usage guide must forbid ssh-config guessing')
     assert.ok(routedUsage.includes('DSH_SSH_REMOTE_CWD'), 'usage guide must mention the env variable')
+    assert.ok(routedUsage.includes('256 KiB'), 'usage guide must quantify the output cap')
+    assert.ok(routedUsage.includes('sed -n'), 'usage guide must give the remote read recipe')
 
     // P1-5: env contributor maps routed sessions to DSH_SSH_*; local AND
     // degraded contribute nothing (no false claims about an offline host).
