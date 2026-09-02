@@ -226,6 +226,11 @@ export class SshRegistry extends Service {
     return [...this.specs.values()].map(spec => this.viewOf(spec))
   }
 
+  /** Absolute path of the persisted connection state (for sibling files). */
+  get stateFilePath(): string {
+    return this.stateFile
+  }
+
   /** The live connection for one entry, created on first use. */
   get(id: string): SshConnection | undefined {
     const spec = this.specs.get(id)

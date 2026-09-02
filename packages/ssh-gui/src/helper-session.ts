@@ -72,6 +72,7 @@ export class SshHelperSession {
   private helperChannel: ClientChannel | undefined
   private sftp: SFTPWrapper | undefined
   private facts: HelperSessionFacts | undefined
+  private loginEnv: Record<string, string> | undefined
   private opened: Promise<void> | undefined
   private disposed = false
 
@@ -147,6 +148,15 @@ export class SshHelperSession {
   }
 
   /**
+   * The remote login environment (from the helper's `env` probe), cached once
+   * at open. Spawned children need a complete environment map because the
+   * helper never merges its own.
+   */
+  get loginEnvironment(): Record<string, string> | undefined {
+    return this.loginEnv
+  }
+
+  /**
    * Deploy, start, and verify the helper daemon. Idempotent and cached.
    * @returns the resolved remote facts.
    */
@@ -204,6 +214,7 @@ export class SshHelperSession {
       throw new SshTransportError(`helper protocol ${ping.protocol} does not match expected ${HELPER_PROTOCOL_VERSION}`)
     }
     const env = await this.channel.send('env', { login: true })
+    this.loginEnv = env.env
     const home = env.home
     const runtimeRoot = posix.join(home, this.options.helperDir, 'run')
     await this.channel.send('mkdir', { path: runtimeRoot, parents: true, okIfExists: true })

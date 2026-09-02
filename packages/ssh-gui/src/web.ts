@@ -16,6 +16,8 @@ import SshRegistry from './registry.ts'
 import type { ConnectionInput, RegistryConfig } from './registry.ts'
 import type { SshConnection } from './connection.ts'
 import { sshRoutePlaceholder } from './transport.ts'
+import { installAgentExperience } from './agent-experience.ts'
+import { writeRoutesManifest, type RoutesManifestEntry } from './routes-manifest.ts'
 
 /** Channel config. */
 export interface WebChannelConfig extends RegistryConfig {
@@ -169,6 +171,22 @@ export function apply(ctx: Context, config: WebChannelConfig): void {
     return connection
   }
 
+  /**
+   * Refresh the human-readable route manifest beside the connection state so
+   * an agent can learn route → host even while a route is offline.
+   */
+  const refreshRoutesManifest = (): void => {
+    const reg = registry()
+    writeRoutesManifest(
+      reg.stateFilePath,
+      reg.list() as unknown as RoutesManifestEntry[],
+      (message) => void ctx.logger.warn(message),
+    )
+  }
+  // `ctx.plugin(SshRegistry)` mounts through a fiber, so the service is not
+  // visible synchronously here — schedule the initial manifest for right after.
+  setTimeout(() => refreshRoutesManifest(), 0)
+
   /** The remote home directory: the login environment's HOME, else the spec cwd. */
   const remoteHome = async (id: string, signal?: AbortSignal): Promise<string> => {
     const connection = requireConnection(id)
@@ -271,6 +289,7 @@ export function apply(ctx: Context, config: WebChannelConfig): void {
         case 'connections.add': {
           const input = requirePayload(payload, isConnectionInput, 'connections.add')
           const added = registry().add(input)
+          refreshRoutesManifest()
           return { ok: true, value: added }
         }
         case 'connections.remove': {
@@ -281,6 +300,7 @@ export function apply(ctx: Context, config: WebChannelConfig): void {
             // route to a dead registry id on the next session resume.
             void rm(sshRoutePlaceholder(input.id.trim(), '/'), { recursive: true, force: true })
               .catch(() => undefined)
+            refreshRoutesManifest()
           }
           return { ok: true, value: { removed } }
         }
@@ -335,4 +355,9 @@ export function apply(ctx: Context, config: WebChannelConfig): void {
 
   const dispose = ctx.connection.rpc.handle('/dsh-ssh', dispatch, { authority: 'loopback' })
   ctx.effect(() => dispose, 'dsh-ssh: /dsh-ssh rpc channel')
+
+  // Agent-facing surface: routing identity in the runtime context, DSH_SSH_*
+  // shell environment, and the ssh_exec model tool. Each registration is
+  // optional and no-ops for non-routed sessions (see agent-experience.ts).
+  installAgentExperience(ctx)
 }
