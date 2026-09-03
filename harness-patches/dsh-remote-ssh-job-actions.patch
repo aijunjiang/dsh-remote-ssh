@@ -60,7 +60,7 @@ index 2f475bd09c..776f7e6dd1 100644
 +  opacity: 0.5;
 +}
 diff --git a/packages/client/ui-jobs/src/client/JobListAction.tsx b/packages/client/ui-jobs/src/client/JobListAction.tsx
-index bf15074079..15e325499d 100644
+index bf15074079..1fc8d46720 100644
 --- a/packages/client/ui-jobs/src/client/JobListAction.tsx
 +++ b/packages/client/ui-jobs/src/client/JobListAction.tsx
 @@ -8,7 +8,10 @@ import css from './JobListAction.module.css'
@@ -88,7 +88,7 @@ index bf15074079..15e325499d 100644
    const rootRef = useRef<HTMLDivElement>(null)
    const triggerRef = useRef<HTMLButtonElement>(null)
  
-@@ -172,6 +176,23 @@ export function JobListAction({ sessionId, useSessions, t }: JobListActionProps)
+@@ -172,6 +176,26 @@ export function JobListAction({ sessionId, useSessions, t }: JobListActionProps)
                    >
                      {duration}
                    </span>
@@ -101,7 +101,10 @@ index bf15074079..15e325499d 100644
 +                        onClick={() => {
 +                          setStoppingId(job.id)
 +                          void Promise.resolve(stopJob(job.id))
-+                            .catch(() => undefined)
++                            .catch((error: unknown) => {
++                              // Surface why the Stop did nothing — check the console.
++                              console.warn('[ui-jobs] stop failed', error instanceof Error ? error.message : String(error))
++                            })
 +                            .finally(() => setStoppingId(undefined))
 +                        }}
 +                      >
@@ -113,7 +116,7 @@ index bf15074079..15e325499d 100644
                )
              })}
 diff --git a/packages/client/ui-jobs/src/client/index.ts b/packages/client/ui-jobs/src/client/index.ts
-index 22dc2c8425..b959277c77 100644
+index 22dc2c8425..f354ac5ccf 100644
 --- a/packages/client/ui-jobs/src/client/index.ts
 +++ b/packages/client/ui-jobs/src/client/index.ts
 @@ -5,7 +5,8 @@
@@ -126,7 +129,7 @@ index 22dc2c8425..b959277c77 100644
  import type {} from '@deepseek-ai/dsh-client-locale/client'
  import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
  import type {} from '@deepseek-ai/dsh-client-ui-session/client'
-@@ -29,6 +30,36 @@ export const inject = ['sessions', 'slots', 'locale']
+@@ -29,6 +30,41 @@ export const inject = ['sessions', 'slots', 'locale']
   */
  export function apply(ctx: ClientContext): void {
    ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-job: dictionaries')
@@ -148,8 +151,13 @@ index 22dc2c8425..b959277c77 100644
 +    const runCommand = remote?.commands?.execute
 +    if (typeof runCommand === 'function') {
 +      try {
-+        return await runCommand(sessionId, `/jobstop ${jobId}`, [])
-+      } catch {
++        const result = await runCommand(sessionId, `/jobstop ${jobId}`, [])
++        if (result === undefined) {
++          console.warn('[ui-jobs] /jobstop returned nothing — the command may not be registered on this host yet (restart after the plugin update?)')
++        }
++        return result
++      } catch (error: unknown) {
++        console.warn('[ui-jobs] /jobstop failed, falling back to jobStop', error instanceof Error ? error.message : String(error))
 +        // Fall through to the remote method below.
 +      }
 +    }
@@ -163,7 +171,7 @@ index 22dc2c8425..b959277c77 100644
    ctx.slots.inject(
      'conversation.session.header.actions',
      () => ctx.slots.register({
-@@ -37,6 +68,6 @@ export function apply(ctx: ClientContext): void {
+@@ -37,6 +73,6 @@ export function apply(ctx: ClientContext): void {
        // After the subagent catalog: session lineage reads before process work.
        order: 20,
        locale: NS,
