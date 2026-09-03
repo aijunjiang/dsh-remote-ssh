@@ -17,6 +17,7 @@ import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import {
   installAgentExperience,
+  looksLikeBackgroundCommand,
   remoteWorldOf,
   ROUTE_CONTEXT_NAME,
   SSH_EXEC_TOOL,
@@ -75,6 +76,15 @@ const fakeConnection = (overrides: Partial<{ host: string; port: number; usernam
   // local cwd is not a route
   assert.equal(parseRoutedCwd('C:\\Users\\me\\project'), null)
   assert.equal(parseRoutedCwd(undefined), null)
+}
+
+// -- background auto-registration is intentionally conservative ---------------
+{
+  assert.equal(looksLikeBackgroundCommand('setsid bash -c "sleep 600" </dev/null >x.log 2>&1 &'), true)
+  assert.equal(looksLikeBackgroundCommand('nohup python3 display.py &'), true)
+  assert.equal(looksLikeBackgroundCommand('echo hi &'), false, 'a bare & is ordinary one-shot parallelism')
+  assert.equal(looksLikeBackgroundCommand('mkdir -p a b & echo done'), false)
+  assert.equal(looksLikeBackgroundCommand('ls -la'), false)
 }
 
 // -- route facts, identity text, degraded text, environment -----------------

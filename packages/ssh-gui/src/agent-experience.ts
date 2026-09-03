@@ -203,7 +203,7 @@ function usageContextText(facts: RouteFacts, world: RemoteWorld): string {
     'Working in this SSH session:',
     `- Route \`${facts.id}\` → ${facts.username}@${facts.host} (remote cwd ${facts.path}). ${channel}`,
     '- Run remote commands with ssh_exec: pass the WHOLE script as one `command` string (no local quoting layer), locale is fixed to C.',
-    '- LONG-RUNNING or background remote tasks: start them DETACHED so ssh_exec returns immediately, e.g. command: `setsid bash -c \'python3 display.py\' </dev/null >run.log 2>&1 &`. Cut stdin (</dev/null) and redirect ALL output — a command that keeps a pipe open (a foreground loop without detach) makes the exec channel wait for EOF and looks hung. ssh_exec returning only means "started", never "finished". Background-style commands auto-register as DSH background jobs next to the session title (stop/log via the job indicator or ssh_job); for other long tasks pass `background: true` explicitly.',
+    '- LONG-RUNNING or background remote tasks: start them DETACHED so ssh_exec returns immediately, e.g. command: `setsid bash -c \'python3 display.py\' </dev/null >run.log 2>&1 &`. Cut stdin (</dev/null) and redirect ALL output — a command that keeps a pipe open (a foreground loop without detach) makes the exec channel wait for EOF and looks hung. ssh_exec returning only means "started", never "finished". Explicit daemonization (setsid/nohup/disown) auto-registers as a DSH background job next to the session title; pass `background: true` for any other long task.',
     '- Verify a background task via its log file (`tail -f run.log`) and a pidfile (`... & echo $! > run.pid`); kill via pidfile (`kill $(cat run.pid)` / `kill -9`). Do NOT use `pkill -f <pattern>`: it can match your own command line and kill the shell running it. Output redirected to files is block-buffered — for reliable streaming logs run python with `-u` or `PYTHONUNBUFFERED=1`, and flush after critical prints.',
     '- Give short commands the default timeout; raise `timeoutMs` only when a genuinely long FOREGROUND job needs it.',
     '- Output is capped at 256 KiB per stream (stdout/stderr); truncation is marked. The engine verifies every result with an end sentinel: an exit-0 "(no output)" result marked sentinel-verified is genuinely empty; if the result says output was lost, it auto-retried and you must NOT treat an empty result as fact — re-run or narrow the command.',
@@ -309,14 +309,14 @@ function summarizeCommand(command: string): string {
 }
 
 /**
- * Whether a command clearly launches a background/detached task, so ssh_exec
- * auto-registers it as a DSH job instead of relying on the agent remembering
- * `background: true`. Detects the common idioms: setsid / nohup / disown, or
- * a trailing `&`.
+ * Whether a command clearly launches a DETACHED long-lived task, so ssh_exec
+ * auto-registers it as a DSH job instead of flooding the job list with every
+ * quick call. Only explicit daemonization counts (setsid / nohup / disown):
+ * a bare trailing `&` is used for ordinary one-shot parallelism and must NOT
+ * become a job. For any other long task, pass `background: true` explicitly.
  */
 export function looksLikeBackgroundCommand(command: string): boolean {
   return /\b(setsid|nohup|disown)\b/u.test(command)
-    || /(?:^|[;&\s])&\s*$/u.test(command.trim())
 }
 
 /** Options accepted by `ssh_route_status`. */
@@ -606,8 +606,9 @@ export function installAgentExperience(ctx: Context): void {
         + 'against an end sentinel — a lost-output (exit 0 with no bytes and no sentinel) auto-retries once, and '
         + 'an exit-0 "(no output)" marked sentinel-verified is genuinely empty. '
         + 'Background jobs: pass `background: true` to register a DSH background job for this session (shown in the '
-        + 'job indicator next to the session title; manage it with ssh_job list/stop/read). Background-style commands '
-        + '(setsid / nohup / disown / a trailing &) are auto-registered without the flag. If the host lacks a jobs '
+        + 'job indicator next to the session title; manage it with ssh_job list/stop/read). Explicit daemonization '
+        + '(setsid / nohup / disown) auto-registers without the flag; ordinary quick calls with a bare `&` do not. '
+        + 'If the host lacks a jobs '
         + 'service, start detached (`setsid bash -c \'…\' </dev/null >run.log 2>&1 &`) instead — returning only means '
         + 'started, never finished; verify via run.log/run.pid, never pkill -f (it can kill your own shell). '
         + 'Use ONLY when the runtime context shows this session is on an SSH route; on a local session the tool refuses, '
