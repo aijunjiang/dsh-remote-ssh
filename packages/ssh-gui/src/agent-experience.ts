@@ -23,6 +23,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { SshHelperRouter } from './helper-router.ts'
 import { SshHelperError, SshTransportError } from '../../ssh/src/channel.ts'
 import { runRemoteCommand } from './remote-exec.ts'
+import { backgroundJobHooks } from './remote-job.ts'
 import { routesManifestPath } from './routes-manifest.ts'
 import {
   degradedRouteText,
@@ -201,7 +202,7 @@ function usageContextText(facts: RouteFacts, world: RemoteWorld): string {
     'Working in this SSH session:',
     `- Route \`${facts.id}\` → ${facts.username}@${facts.host} (remote cwd ${facts.path}). ${channel}`,
     '- Run remote commands with ssh_exec: pass the WHOLE script as one `command` string (no local quoting layer), locale is fixed to C.',
-    '- LONG-RUNNING or background remote tasks: start them DETACHED so ssh_exec returns immediately, e.g. command: `setsid bash -c \'python3 display.py\' </dev/null >run.log 2>&1 &`. Cut stdin (</dev/null) and redirect ALL output — a command that keeps a pipe open (a foreground loop without detach) makes the exec channel wait for EOF and looks hung. ssh_exec returning only means "started", never "finished".',
+    '- LONG-RUNNING or background remote tasks: start them DETACHED so ssh_exec returns immediately, e.g. command: `setsid bash -c \'python3 display.py\' </dev/null >run.log 2>&1 &`. Cut stdin (</dev/null) and redirect ALL output — a command that keeps a pipe open (a foreground loop without detach) makes the exec channel wait for EOF and looks hung. ssh_exec returning only means "started", never "finished". Prefer `background: true` when you want the task tracked as a DSH background job next to the session title (stop/log from there) instead of a manual detach you must remember.',
     '- Verify a background task via its log file (`tail -f run.log`) and a pidfile (`... & echo $! > run.pid`); kill via pidfile (`kill $(cat run.pid)` / `kill -9`). Do NOT use `pkill -f <pattern>`: it can match your own command line and kill the shell running it. Output redirected to files is block-buffered — for reliable streaming logs run python with `-u` or `PYTHONUNBUFFERED=1`, and flush after critical prints.',
     '- Give short commands the default timeout; raise `timeoutMs` only when a genuinely long FOREGROUND job needs it.',
     '- Output is capped at 256 KiB per stream (stdout/stderr); truncation is marked. The engine verifies every result with an end sentinel: an exit-0 "(no output)" result marked sentinel-verified is genuinely empty; if the result says output was lost, it auto-retried and you must NOT treat an empty result as fact — re-run or narrow the command.',
@@ -283,6 +284,24 @@ interface SshExecArgs {
   command?: unknown
   cwd?: unknown
   timeoutMs?: unknown
+  background?: unknown
+}
+
+/** Minimal `ctx.jobs` surface used to register remote background tasks. */
+interface JobsLike {
+  start(spec: {
+    kind: string
+    label: string
+    outputLimitBytes?: number
+    owner?: unknown
+    run(): unknown
+  }): string
+}
+
+/** One-line label for the session job indicator. */
+function summarizeCommand(command: string): string {
+  const flat = command.replace(/\s+/gu, ' ').trim()
+  return flat.length > 72 ? `${flat.slice(0, 69)}…` : flat
 }
 
 /** Options accepted by `ssh_route_status`. */
@@ -297,6 +316,7 @@ interface RouteStatusArgs {
 async function executeSshExec(
   sessions: SessionsLike | undefined,
   registry: RegistryLike | undefined,
+  jobs: JobsLike | undefined,
   router: SshHelperRouter,
   args: SshExecArgs,
   exec: ExecutionLike,
@@ -323,6 +343,37 @@ async function executeSshExec(
   // Remote base: an explicit absolute POSIX override, else the route path.
   const requested = typeof args.cwd === 'string' && args.cwd.startsWith('/') ? args.cwd : undefined
   const base = requested ?? view.facts.path
+
+  // Background task: register it with ctx.jobs so it shows in the session's
+  // background-job indicator (running/stop/log) and never gets forgotten.
+  if (args.background === true) {
+    if (jobs === undefined) {
+      return 'ssh_exec: this host provides no background-job service (`ctx.jobs`), so `background: true` cannot register a session job. '
+        + 'Start the task detached instead: `setsid bash -c \'…\' </dev/null >run.log 2>&1 &` and watch run.log / run.pid — '
+        + 'returning only means started, never finished.'
+    }
+    let session
+    try {
+      session = router.sessionForId(view.facts.id)
+    } catch (error) {
+      return failureText(error)
+    }
+    try {
+      const label = summarizeCommand(command)
+      const jobId = jobs.start({
+        kind: 'bash',
+        label,
+        outputLimitBytes: 256 * 1024,
+        owner: exec.agent,
+        run: () => backgroundJobHooks(session, { command, cwd: base }),
+      })
+      return `ssh_exec: background job \`${jobId}\` started on route \`${view.facts.id}\` (${view.facts.username}@${view.facts.host}): ${label}. `
+        + 'It is shown in the background-job indicator next to the session title — read its log and stop it there '
+        + '(log tail capped at 256 KiB). Returning means the job is REGISTERED, not finished.'
+    } catch (error) {
+      return failureText(error)
+    }
+  }
 
   const requestedTimeout = typeof args.timeoutMs === 'number' && Number.isFinite(args.timeoutMs)
     ? Math.max(1_000, Math.min(600_000, Math.trunc(args.timeoutMs)))
@@ -427,6 +478,7 @@ export function installAgentExperience(ctx: Context): void {
   // bug this lazy access fixes.
   const sessionsOf = (): SessionsLike | undefined => ctx.get('sessions') as SessionsLike | undefined
   const registryOf = (): RegistryLike | undefined => ctx.get('sshRegistry') as RegistryLike | undefined
+  const jobsOf = (): JobsLike | undefined => ctx.get('jobs') as JobsLike | undefined
   const router = new SshHelperRouter(ctx)
   ctx.effect(() => () => { void router.dispose() }, 'ssh-agent-experience: helper router')
   const viewOf = (agent: AgentLike | undefined): SessionRouteView => routeViewFor(sessionsOf(), registryOf(), agent)
@@ -499,7 +551,8 @@ export function installAgentExperience(ctx: Context): void {
         + 'and on a degraded (spelled-but-unresolvable) route it says so and lists recovery steps. '
         + 'When a route fails, call ssh_route_status first. '
         + 'Inputs: command (required, shell syntax as the remote bash would run it), optional cwd (absolute POSIX path '
-        + 'override), optional timeoutMs (1 000–600 000, default 120 000).',
+        + 'override), optional timeoutMs (1 000–600 000, default 120 000), optional background (true = register as a '
+        + 'DSH background job visible next to the session title, with stop/log — for long-running tasks).',
       parameters: {
         type: 'object',
         properties: {
@@ -512,6 +565,10 @@ export function installAgentExperience(ctx: Context): void {
             type: 'integer',
             description: 'Optional hard timeout in milliseconds (1 000–600 000; default 120 000).',
           },
+          background: {
+            type: 'boolean',
+            description: 'When true, register the command as a DSH background job for this session (visible in the job indicator next to the session title; stop and read its log there). Use for long-running tasks instead of a manual detach.',
+          },
         },
         required: ['command'],
       },
@@ -519,7 +576,7 @@ export function installAgentExperience(ctx: Context): void {
         schema: { type: 'string' },
         render: (_args, value) => [{ type: 'text', text: String(value) }],
       },
-      execute: async (args, exec) => await executeSshExec(sessionsOf(), registryOf(), router, args as SshExecArgs, exec),
+      execute: async (args, exec) => await executeSshExec(sessionsOf(), registryOf(), jobsOf(), router, args as SshExecArgs, exec),
     })
     disposers.push(disposeExec)
 

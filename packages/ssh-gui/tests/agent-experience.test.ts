@@ -220,6 +220,31 @@ const fakeConnection = (overrides: Partial<{ host: string; port: number; usernam
     const routedStatus = await statusTool!.execute({}, { agent: { id: 'sess-routed' }, signal: new AbortController().signal })
     assert.ok(String(routedStatus).includes('SSH route `c1`') && String(routedStatus).includes('amax@192.168.10.125'))
     assert.ok(String(routedStatus).includes('/home/haitang/JunHeAssemblyLine'))
+
+    // P0-2b: background tasks. Without a jobs service ssh_exec explains and
+    // falls back to the detach discipline.
+    const bgNoJobs = await execTool!.execute(
+      { command: 'sleep 30', background: true },
+      { agent: { id: 'sess-routed' }, signal: new AbortController().signal },
+    )
+    assert.ok(String(bgNoJobs).includes('no background-job service'), 'missing ctx.jobs must be explained')
+
+    // With a jobs service the task is registered as a session job; run() is
+    // only invoked by the registry (never in this unit test, so no network).
+    let startedSpec: { kind?: string; label?: string; run?: () => unknown; owner?: unknown } | undefined
+    ctx.provide('jobs')
+    ctx.jobs = { start: (spec: { kind: string; label: string; run(): unknown; owner?: unknown }) => { startedSpec = spec; return 'bash-42' } }
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    const bgJob = await execTool!.execute(
+      { command: 'sleep 30', background: true },
+      { agent: { id: 'sess-routed' }, signal: new AbortController().signal },
+    )
+    assert.ok(String(bgJob).includes('bash-42'), 'background result must name the job id')
+    assert.ok(String(bgJob).includes('background job'), 'background result must say it is a job')
+    assert.equal(startedSpec?.kind, 'bash')
+    assert.equal(startedSpec?.label, 'sleep 30')
+    assert.equal(typeof startedSpec?.run, 'function')
+    assert.equal((startedSpec?.owner as { id?: string } | undefined)?.id, 'sess-routed', 'the job must be owned by the calling session')
   } finally {
     if (previousHome === undefined) delete process.env.DSH_HOME
     else process.env.DSH_HOME = previousHome
