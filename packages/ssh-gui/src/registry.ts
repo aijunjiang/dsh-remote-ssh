@@ -237,7 +237,7 @@ export class SshRegistry extends Service {
     if (spec === undefined) return undefined
     let connection = this.live.get(id)
     if (connection === undefined) {
-      connection = new SshConnection(spec)
+      connection = new SshConnection(spec, this.ctx.logger)
       this.live.set(id, connection)
     }
     return connection

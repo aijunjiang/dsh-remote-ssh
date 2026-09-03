@@ -123,9 +123,20 @@ function forwardThrough(client: Client, host: string, port: number): Promise<Cli
   return new Promise<ClientChannel>((resolve, reject) => {
     client.forwardOut('127.0.0.1', 0, host, port, (error, channel) => {
       if (error !== undefined) reject(error)
-      else resolve(channel)
+      else {
+        // The tunnel rides a hop client whose own transport failures surface
+        // through the dependent connect; an 'error' on this channel with no
+        // listener would crash the host process, so quench it here.
+        channel.on('error', () => { /* surfaced by the dependent connect */ })
+        resolve(channel)
+      }
     })
   })
+}
+
+/** Minimal diagnostic sink for a connection-loss warning. */
+interface WarnSink {
+  warn(message: string): void
 }
 
 /** Host-key verifier accepting exactly the configured fingerprints/keys. */
@@ -150,6 +161,7 @@ export class SshConnection {
   private readonly hops: ResolvedHop[]
   private readonly strict: boolean
   private readonly knownHosts: string[]
+  private readonly logger: WarnSink | undefined
   private clients: Client[] = []
   private ready: Promise<Client> | undefined
   private sftp: SFTPWrapper | undefined
@@ -163,10 +175,11 @@ export class SshConnection {
   }
 
   /** Build the hop chain from a registry spec (auth defaults fall down the chain). */
-  constructor(spec: SshConnectionSpec) {
+  constructor(spec: SshConnectionSpec, logger?: WarnSink) {
     // Parameter properties are not erasable TypeScript; the field is declared
     // above and assigned here so Node's type-stripping can run this file.
     this.spec = spec
+    this.logger = logger
     this.id = spec.id
     this.label = spec.label
     this.endpoint = `${spec.username}@${spec.host}`
@@ -299,9 +312,19 @@ export class SshConnection {
       client.exec(text, { pty: false }, (error, stream) => {
         if (error !== undefined) { cleanup(); reject(error); return }
         channel = stream
+        const fail = (cause: Error): void => {
+          if (settled) return
+          settled = true
+          cleanup()
+          reject(cause)
+        }
         stream.on('data', (data: Buffer) => { stdoutChunks.push(data) })
         stream.stderr.on('data', (data: Buffer) => { stderrChunks.push(data) })
         stream.on('close', (code: number | null, signal: string | null) => { finish(code, signal) })
+        // A channel 'error' (transport loss mid-command) must settle the call
+        // instead of crashing the process as an unhandled stream error.
+        stream.on('error', fail)
+        stream.stderr.on('error', fail)
       })
       if (opts?.signal?.aborted === true) { onAbort(); return }
       opts?.signal?.addEventListener('abort', onAbort, { once: true })
@@ -356,14 +379,54 @@ export class SshConnection {
           const socket = await forwardThrough(previous, hop.host, hop.port)
           await connectReady(client, { ...config, sock: socket })
         }
+        // Arm the transport guard the moment this hop is live: the handshake
+        // listeners in `connectReady` are gone by now, and an ssh2 'error'
+        // with no listener is fatal to the host process. A later drop is
+        // logged and the shared connection invalidated instead.
+        this.clients = clients
+        this.guard(client)
       }
-      this.clients = clients
       return clients[clients.length - 1] as Client
     } catch (error) {
+      // Drop the partial chain from the live view before ending it, so the
+      // guards armed above stay quiet during this teardown.
+      this.clients = []
       for (const client of clients.reverse()) {
         try { client.end() } catch { /* best effort */ }
       }
       throw error
+    }
+  }
+
+  /**
+   * Watch one connected hop for the rest of its life. Once a client is
+   * `ready`, ssh2 emits a Client `'error'` for later transport failures
+   * (network timeout, server reset), and an `'error'` without a listener
+   * crashes the process. The guard logs the loss once and invalidates the
+   * shared connection, so the next caller reconnects through the re-memoized
+   * {@link SshConnection.getClient} promise.
+   */
+  private guard(client: Client): void {
+    const lost = (detail: string): void => {
+      if (this.disposed) return
+      if (!this.clients.includes(client)) return
+      this.invalidate()
+      this.logger?.warn(`dsh-ssh: connection "${this.label}" (${this.endpoint}) lost: ${detail}; the next use will reconnect`)
+    }
+    client.on('error', (error: Error) => lost(`transport error: ${error.message}`))
+    client.on('close', () => lost('transport closed'))
+  }
+
+  /** Drop the live chain after a transport failure so the next use reconnects. */
+  private invalidate(): void {
+    this.ready = undefined
+    this.sftp = undefined
+    this.sftpOpening = undefined
+    this.remoteEnvironment = undefined
+    const clients = this.clients
+    this.clients = []
+    for (const client of clients.reverse()) {
+      try { client.end() } catch { /* best effort */ }
     }
   }
 }

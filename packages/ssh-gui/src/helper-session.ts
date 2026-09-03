@@ -207,6 +207,14 @@ export class SshHelperSession {
         new SshTransportError(`the remote helper exited${tail.length === 0 ? '' : `: ${tail.slice(-400)}`}`),
       )
     }) as never)
+    channel.on('error', ((error: Error) => {
+      this.options.logger?.error?.(`dsh-ssh-gui helper channel error: ${error.message}`)
+      this.channel.fail(new SshTransportError(`the remote helper channel errored: ${error.message}`, { cause: error }))
+    }) as never)
+    channel.stderr.on('error', (() => {
+      // A stderr stream error only stops diagnostics; the channel-level guard
+      // above still settles the session on real transport failure.
+    }) as never)
 
     await this.channel.waitForReady(this.options.readyTimeoutMs)
     const ping = await this.channel.send('ping', {})
