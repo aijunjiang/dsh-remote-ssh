@@ -28,27 +28,37 @@
 - 本机：DSH（deepseek-harness）与 Node ≥ 22
 - 远端：可 SSH 登录的账号，主机上有 `python3` 与 `bash`（helper 依赖）
 
-仓库是**多包 monorepo**（包之间互相相对引用），所以发布安装走官方兼容的“整仓链接 + profile 自动注册”，**装完重启即可，启动命令不用加任何参数**：
+### 方式 A：官方 `dsh plugin add`（推荐，装完启动零参数）
+
+仓库根就是官方包（`dsh.bundle.patch` 声明了 GUI 用户层），安装后每次启动自动生效：
 
 ```bash
-git clone https://github.com/aijunjiang/dsh-remote-ssh
-cd dsh-remote-ssh
+# 本地路径（开发中）或 GitHub：
+dsh plugin --profile web add <本仓库路径>
+# 正式发布形态：
+dsh plugin --profile web add github:aijunjiang/dsh-remote-ssh
 
-# 一条命令：链接 4 个包 + 把 SSH GUI 用户层注册进 web profile
-# （幂等，可重复执行）
-node scripts/install.mjs
-# 选项：--home <dsh home> | --profile <name>（默认 web）| --remove（卸载）
-
-# 然后照常启动，不加 --patch：
+# 然后照常启动，不加任何参数：
 pnpm dsh web
 ```
 
-> 安装脚本做了什么：把 `packages/*` 用 junction/符号链接挂进 `<dsh home>/profiles/node_modules`，并在 `<dsh home>/profiles/web/cordis.patch.yml` 末尾写入一段带管理标记的 GUI 用户层（每次启动自动应用）。卸载用 `node scripts/install.mjs --remove`（同时移除段落与链接，不影响其它插件）。
+> 该命令 pnpm 安装根包（内部依赖走 DSH 基线 peer，npm 只拉 ssh2），并把声明了 `dsh.bundle` 的包自动加入 profile 的 bundles 层。卸载：`dsh plugin --profile web remove dsh-remote-ssh`。
+
+### 方式 B：本地开发安装脚本
+
+```bash
+git clone https://github.com/aijunjiang/dsh-remote-ssh && cd dsh-remote-ssh
+node scripts/install.mjs                 # 链接 4 个包 + 注册 GUI 层（幂等）
+# 选项：--home <dsh home> | --profile <name>（默认 web）| --remove（卸载）
+pnpm dsh web                             # 零参数
+```
+
+> 两种方式装出的都是同一层：SSH GUI 用户层 + agent 体验。方式 B 额外保留 4 个包名便于 `--patch` 使用完整模式。
 
 启动形态：
 
 ```bash
-# A.（默认，安装脚本注册的就是这层）SSH GUI 用户层：连接管理 + 远端目录浏览 +
+# A.（默认注册的这层）SSH GUI 用户层：连接管理 + 远端目录浏览 +
 #    agent 路由身份/指南 + ssh_exec/ssh_route_status。本机 fs/subprocess 保持不变。
 pnpm dsh web
 
@@ -73,6 +83,17 @@ pnpm dsh web --patch <repo>/cordis.patch.yml
 > This session's working directory is on SSH route `c1` (amax@192.168.10.125:22); its remote absolute path is /home/haitang/JunHeAssemblyLine.
 
 并附一段使用指南（何时用 `ssh_exec`、镜像目录不可信、路由断了先查 `ssh_route_status`、输出上限等）。直接说“看下这台设备的硬件”即可——agent 会用内置 `ssh_exec` 在**远端**执行，而不是本机。
+
+### 同名目录的显示规则
+
+同名目录跨设备/路径不会混淆：每个远端工作区按 `路由 + 远端绝对路径` 唯一，工作区/会话标题自动加人类可读的主机后缀（来自连接 label，缺省为 `user@host`）：
+
+```
+JunHeAssemblyLine · amax@192.168.10.125     # 远程 192.168.10.125 上
+JunHeAssemblyLine · amax@192.168.10.126     # 另一台远端上
+```
+
+给连接起有意义的 label（如 `dev-server`）时后缀用 label。规则同样适用于 agent：runtime context 会直接声明路由与主机，`ssh_route_status` 可随时复核。
 
 ### Agent 侧已内置的能力
 
@@ -128,7 +149,11 @@ pnpm dsh web --patch <repo>/cordis.patch.yml
 ## 目录结构（概览）
 
 ```
-cordis.patch.yml            # 完整模式组合（one-world 切换 + 远端行）
+package.json               # 官方根包：dsh.bundle.patch -> bundle.gui.patch.yml
+bundle.gui.patch.yml       # 官方 GUI 用户层（dsh plugin add 自动应用）
+src/index.ts               # 官方根包入口（复用 packages/ssh-gui 插件面）
+lib/client.js              # 官方根包 client bundle（id dsh-remote-ssh）
+cordis.patch.yml           # 完整模式组合（one-world 切换 + 远端行）
 packages/
   ssh/                      # 连接 owner：认证阶梯、密钥置备、helper 通道与协议
   fs-ssh/                   # ctx.fs → 远端文件系统（单次往返列出、流式限长读、CAS 写）
@@ -136,8 +161,8 @@ packages/
   remote-argv/              # 远端 rg/grep argv 翻译
   ssh-gui/                  # GUI：注册表 /dsh-ssh RPC / 侧边栏 / React bundle + agent 体验
 scripts/
-  install.mjs               # 发布安装（链接进 profile loader 树）
-  build-gui-client.mjs      # 重建 ssh-gui 的 client bundle（ssh-gui/lib）
+  install.mjs               # 本地开发安装（链接 + profile 自动注册；--remove 卸载）
+  build-gui-client.mjs      # 重建 client bundle（dev id dsh-ssh-gui / 官方 id dsh-remote-ssh）
   test.mjs                  # 全部本地测试：node scripts/test.mjs
 specs/ DESIGN.md            # 契约、审计、设计依据（技术细节入口）
 ```
