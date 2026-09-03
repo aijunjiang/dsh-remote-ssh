@@ -82,7 +82,7 @@ pnpm dsh web --patch <repo>/cordis.patch.yml
 
 开出来的就是**路由会话**：运行时上下文会显示类似
 
-> This session's working directory is on SSH route `c1` (amax@192.168.10.125:22); its remote absolute path is /home/haitang/JunHeAssemblyLine.
+> This session's working directory is on SSH route `c1` (dev@192.168.0.101:22); its remote absolute path is /home/dev/projects/project-alpha.
 
 并附一段使用指南（何时用 `ssh_exec`、镜像目录不可信、路由断了先查 `ssh_route_status`、输出上限等）。直接说“看下这台设备的硬件”即可——agent 会用内置 `ssh_exec` 在**远端**执行，而不是本机。
 
@@ -91,8 +91,8 @@ pnpm dsh web --patch <repo>/cordis.patch.yml
 同名目录跨设备/路径不会混淆：每个远端工作区按 `路由 + 远端绝对路径` 唯一，工作区/会话标题自动加人类可读的主机后缀（来自连接 label，缺省为 `user@host`）：
 
 ```
-JunHeAssemblyLine · amax@192.168.10.125     # 远程 192.168.10.125 上
-JunHeAssemblyLine · amax@192.168.10.126     # 另一台远端上
+project-alpha · dev@192.168.0.101      # 远程服务器 192.168.0.101 上
+project-alpha · dev@192.168.0.102      # 另一台远程服务器上
 ```
 
 给连接起有意义的 label（如 `dev-server`）时后缀用 label。规则同样适用于 agent：runtime context 会直接声明路由与主机，`ssh_route_status` 可随时复核。

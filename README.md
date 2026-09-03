@@ -73,7 +73,7 @@ pnpm dsh web --patch <repo>/cordis.patch.yml
 
 The session is now **routed**: its runtime context shows e.g.
 
-> This session's working directory is on SSH route `c1` (amax@192.168.10.125:22); its remote absolute path is /home/haitang/JunHeAssemblyLine.
+> This session's working directory is on SSH route `c1` (dev@192.168.0.101:22); its remote absolute path is /home/dev/projects/project-alpha.
 
 …followed by a usage guide (when to use `ssh_exec`, that mirrors are untrusted, that `ssh_route_status` is the recovery tool, output caps, …). Just say "check this device's hardware" — the agent runs `ssh_exec` on the **remote** host.
 
@@ -82,8 +82,8 @@ The session is now **routed**: its runtime context shows e.g.
 Remote workspaces are unique by `route + remote absolute path`, so same-named directories on different devices/paths never collide. Workspace/session titles carry a human route suffix (connection label, else `user@host`):
 
 ```
-JunHeAssemblyLine · amax@192.168.10.125     # on remote 192.168.10.125
-JunHeAssemblyLine · amax@192.168.10.126     # on another remote
+project-alpha · dev@192.168.0.101      # on remote server 192.168.0.101
+project-alpha · dev@192.168.0.102      # on another remote server
 ```
 
 Give connections meaningful labels (e.g. `dev-server`) to control the suffix. The same rule applies to agents: the runtime context names the route and host directly, and `ssh_route_status` re-confirms it any time.
