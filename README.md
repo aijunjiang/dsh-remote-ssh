@@ -1,173 +1,167 @@
 # dsh-remote-ssh
 
-> Move the workspace's file IO and command execution onto an SSH target — while sessions, the web GUI, and `$DSH_HOME` stay on this machine. A DSH plugin set for **remote development over SSH**.
+> English | [中文](docs/README.zh-CN.md)
 
-把 DSH 的**工作区放到远端机器上**：本机保留会话、浏览器界面与配置，文件的读写、命令的执行都发生在你指定的 SSH 主机上。侧边栏里管理连接、浏览远端目录，会话按路由在**多台远端机器之间切换**，互不干扰。
+Move the workspace's file IO and command execution onto an SSH target — while sessions, the web GUI, and `$DSH_HOME` stay on this machine. A DSH plugin set for **remote development over SSH**.
 
-本文件面向使用者；设计取舍、契约与审计细节见 [`DESIGN.md`](DESIGN.md) 与 [`specs/`](specs/)。
+Manage connections and browse remote directories from the web GUI; each session routes to the host its working directory names, and several remote hosts can run side by side. Design notes, contracts, and audits live in [`DESIGN.md`](DESIGN.md) and [`specs/`](specs/). The **harness-fork patch** behind same-named remote workspace titles lives under [`harness-patches/`](harness-patches/README.md) — see [Issue #1](https://github.com/aijunjiang/dsh-remote-ssh/issues/1).
 
 ---
 
-## 它能做什么
+## Feature overview
 
-| 能力 | 说明 |
+| Capability | What it does |
 |---|---|
-| **SSH 连接管理** | web GUI 侧边栏添加/测试/删除连接：密码、密钥、SSH agent、ProxyJump 跳板 |
-| **远端目录浏览** | GUI 内浏览远端目录树，在任意目录建立工作区（不必手打 ssh） |
-| **会话级路由** | 每个会话的工作目录决定“这台会话跑在哪台机器”：`ssh://<id>/<路径>` 或本地占位目录两种拼写等价；多台远端可同时并行 |
-| **远端执行/文件**（完整模式） | `ctx.fs` / `ctx.subprocess` 指向远端：命令、git、测试、构建、读写在远端发生 |
-| **Agent 引导**（内置） | 路由会话的运行时上下文自动声明“你在哪台机器”，附使用指南、`ssh_exec` / `ssh_route_status` 工具与 `DSH_SSH_*` 环境变量，防止把远端当本地、把空占位当空项目 |
-| **凭据驻留本机** | 密码与身份密钥只存在本机 DSH home；远端只看到你授权的账号 |
+| **SSH connection manager** | Add / test / remove connections in the web GUI: password, key, SSH agent, ProxyJump |
+| **Remote directory browser** | Browse the target's tree in the GUI and adopt any directory as a workspace |
+| **Per-session routing** | A session's working directory decides the machine: `ssh://<id>/<path>` and its local placeholder twin are equivalent; many remotes can run in parallel |
+| **Remote fs/subprocess** (full mode) | `ctx.fs` / `ctx.subprocess` point at the remote host: git, tests, builds, reads and writes happen there |
+| **Agent guidance** (built-in) | Routed sessions declare "which machine am I on" in the runtime context, plus a usage guide, `ssh_exec` / `ssh_route_status`, and `DSH_SSH_*` env vars — no more guessing from paths, no silent "empty project" mirrors |
+| **Credentials stay local** | Passwords and identity keys only ever live under this machine's DSH home |
 
 ---
 
-## 安装
+## Install
 
-前置：
+Prereqs: DSH (deepseek-harness) and Node ≥ 22 locally; an SSH account on the target with `python3` and `bash`.
 
-- 本机：DSH（deepseek-harness）与 Node ≥ 22
-- 远端：可 SSH 登录的账号，主机上有 `python3` 与 `bash`（helper 依赖）
+### A. Official `dsh plugin add` (recommended — zero-flag startup)
 
-### 方式 A：官方 `dsh plugin add`（推荐，装完启动零参数）
-
-仓库根就是官方包（`dsh.bundle.patch` 声明了 GUI 用户层），安装后每次启动自动生效：
+The repository root IS the official bundle package (`dsh.bundle.patch` → the GUI user layer), applied at every boot:
 
 ```bash
-# 本地路径（开发中）或 GitHub：
-dsh plugin --profile web add <本仓库路径>
-# 正式发布形态：
 dsh plugin --profile web add github:aijunjiang/dsh-remote-ssh
+# or from a local checkout: dsh plugin --profile web add <this-repo-path>
 
-# 然后照常启动，不加任何参数：
-pnpm dsh web
+pnpm dsh web          # no flags needed
 ```
 
-> 该命令 pnpm 安装根包（内部依赖走 DSH 基线 peer，npm 只拉 ssh2），并把声明了 `dsh.bundle` 的包自动加入 profile 的 bundles 层。卸载：`dsh plugin --profile web remove dsh-remote-ssh`。
+> pnpm installs the root package (internal `@deepseek-ai` deps ride the DSH baseline as optional peers; only `ssh2` comes from npm) and auto-registers the bundle in the profile layer. Uninstall: `dsh plugin --profile web remove dsh-remote-ssh`.
 
-### 方式 B：本地开发安装脚本
+### B. Local dev install script
 
 ```bash
 git clone https://github.com/aijunjiang/dsh-remote-ssh && cd dsh-remote-ssh
-node scripts/install.mjs                 # 链接 4 个包 + 注册 GUI 层（幂等）
-# 选项：--home <dsh home> | --profile <name>（默认 web）| --remove（卸载）
-pnpm dsh web                             # 零参数
+node scripts/install.mjs        # links 4 packages + registers the GUI layer (idempotent)
+# options: --home <dsh home> | --profile <name> (default web) | --remove
+pnpm dsh web                    # zero flags
 ```
 
-> 两种方式装出的都是同一层：SSH GUI 用户层 + agent 体验。方式 B 额外保留 4 个包名便于 `--patch` 使用完整模式。
-
-启动形态：
+Startup modes:
 
 ```bash
-# A.（默认注册的这层）SSH GUI 用户层：连接管理 + 远端目录浏览 +
-#    agent 路由身份/指南 + ssh_exec/ssh_route_status。本机 fs/subprocess 保持不变。
+# A. (default) SSH GUI user layer: connection manager + remote browser + agent
+#    guidance/tools. Local fs/subprocess stays local.
 pnpm dsh web
 
-# B. 完整远端工作区：本机文件与命令整体切到远端（另起实例跑，勿装在常用实例上）
+# B. Full remote workspace: move file IO AND command execution to the remote
+#    (run on a dedicated instance, not your daily one)
 export DSH_REMOTE_HOST=your-host
 export DSH_REMOTE_USER=your-user
-export DSH_REMOTE_PASSWORD=your-password      # 仅首次；随后自动改用密钥
+export DSH_REMOTE_PASSWORD=your-password      # first connect only; key auto-provisioned after
 export DSH_REMOTE_CWD=/home/you/workspace
 pnpm dsh web --patch <repo>/cordis.patch.yml
 ```
 
 ---
 
-## 快速开始（GUI）
+## Quick start (GUI)
 
-1. 打开 web GUI，左侧 **Connections** 面板 **Add** 一个连接（目标 IP、账号、认证方式），**Test** 确认连通。
-2. 在 Connections 中进入该连接，浏览远端目录，在目标目录上“选择为工作区”。
-3. 以该工作区开一个新会话。
+1. Open the web GUI → **Connections** panel → **Add** a connection (host, account, auth), **Test** it.
+2. Enter the connection, browse the remote tree, and "adopt as workspace" on the target directory.
+3. Start a new session in that workspace.
 
-开出来的就是**路由会话**：运行时上下文会显示类似
+The session is now **routed**: its runtime context shows e.g.
 
 > This session's working directory is on SSH route `c1` (amax@192.168.10.125:22); its remote absolute path is /home/haitang/JunHeAssemblyLine.
 
-并附一段使用指南（何时用 `ssh_exec`、镜像目录不可信、路由断了先查 `ssh_route_status`、输出上限等）。直接说“看下这台设备的硬件”即可——agent 会用内置 `ssh_exec` 在**远端**执行，而不是本机。
+…followed by a usage guide (when to use `ssh_exec`, that mirrors are untrusted, that `ssh_route_status` is the recovery tool, output caps, …). Just say "check this device's hardware" — the agent runs `ssh_exec` on the **remote** host.
 
-### 同名目录的显示规则
+### Same-named directories
 
-同名目录跨设备/路径不会混淆：每个远端工作区按 `路由 + 远端绝对路径` 唯一，工作区/会话标题自动加人类可读的主机后缀（来自连接 label，缺省为 `user@host`）：
+Remote workspaces are unique by `route + remote absolute path`, so same-named directories on different devices/paths never collide. Workspace/session titles carry a human route suffix (connection label, else `user@host`):
 
 ```
-JunHeAssemblyLine · amax@192.168.10.125     # 远程 192.168.10.125 上
-JunHeAssemblyLine · amax@192.168.10.126     # 另一台远端上
+JunHeAssemblyLine · amax@192.168.10.125     # on remote 192.168.10.125
+JunHeAssemblyLine · amax@192.168.10.126     # on another remote
 ```
 
-给连接起有意义的 label（如 `dev-server`）时后缀用 label。规则同样适用于 agent：runtime context 会直接声明路由与主机，`ssh_route_status` 可随时复核。
+Give connections meaningful labels (e.g. `dev-server`) to control the suffix. The same rule applies to agents: the runtime context names the route and host directly, and `ssh_route_status` re-confirms it any time.
 
-### Agent 侧已内置的能力
+### Built-in agent capabilities
 
-- **`ssh_exec`**：把整段脚本作为一条 `command` 在远端 bash 执行。走插件自带的 ssh2/helper 通道——**不要手搓本机 ssh.exe**（Windows 受限沙箱下无法 spawn，且纯属绕路）。locale 固定 `C`；输出上限 256 KiB/流，截断会标记；每条结果带**结束哨兵**校验：`exit 0 + 空输出` 只有标了 sentinel-verified 才算真空，疑似丢输出自动重试一次并显式报错。
-- **`ssh_route_status`**：查看当前会话的路由、目标主机、已知连接清单与路由清单文件；`checkLive: true` 可做真实连通性探测。
-- **环境变量**：路由会话的 shell 自带 `DSH_SSH_ROUTE_ID / HOST / USER / PORT / REMOTE_CWD / ENDPOINT`。
-- **路由清单文件**：`<dsh home>/dsh-ssh-routes.json`——明文、无密钥，离线时也能查到“c1 是哪台机”。
-- **读写语义自适应**：完整模式下你的 read/write/glob/grep 直接打在远端；仅 GUI 层时它们仍是本机，指南会明说“远端文件用 `ssh_exec` 里的 `cat` / `sed -n` / heredoc，绝不写本地占位目录”。
+- **`ssh_exec`** — run one script on the session's route over the in-process ssh2/helper channel (no local ssh.exe, no quoting layers). Locale fixed to C; output capped at 256 KiB/stream with truncation marked; every result is verified against an **end sentinel** — a sentinel-verified empty output is genuinely empty, suspected lost output auto-retries once and reports loudly.
+- **`ssh_route_status`** — route facts, known connections, manifest path; `checkLive: true` probes reachability.
+- **Environment** — routed shells carry `DSH_SSH_ROUTE_ID / HOST / USER / PORT / REMOTE_CWD / ENDPOINT`.
+- **Route manifest** — `<dsh home>/dsh-ssh-routes.json`, plain and secret-free, so "which host is c1" is answerable even offline.
+- **Adaptive semantics** — in full mode your read/write/glob/grep hit the remote; in GUI-only mode they stay local and the guide says so (remote reads via `cat` / `sed -n`, never the local placeholder dirs).
 
 ---
 
-## 完整模式（把本地世界整体切到远端）
+## Full mode (move the local world to the remote)
 
-`cordis.patch.yml`（仓库根）做的是**一次性切换**而非叠加：
+`cordis.patch.yml` is a **one-way switch**, not an overlay:
 
-- 关闭本地 `subprocess`、`fs-sandbox`、`sandbox`、两套沙箱 shell、本地目录选择器与权限预设；
-- 挂上远端 `fs-ssh`、`subprocess-ssh`（含远端 `shell`）与会话路由所需 GUI 层；
-- `sandbox-policy.workspaceRoot` 指向 `DSH_REMOTE_CWD`。
+- turns off local `subprocess`, `fs-sandbox`, `sandbox`, both sandboxed shells, the default directory chooser and permission presets;
+- mounts remote `fs-ssh` / `subprocess-ssh` (incl. remote `shell`) plus the routing GUI layer;
+- points `sandbox-policy.workspaceRoot` at `DSH_REMOTE_CWD`.
 
-环境变量：
+Environment:
 
-| 变量 | 作用 |
+| Variable | Meaning |
 |---|---|
-| `DSH_REMOTE_HOST` | 目标主机（必填） |
-| `DSH_REMOTE_USER` | 远端账号（必填） |
-| `DSH_REMOTE_PASSWORD` | 仅首次连接；随后自动置备密钥 |
-| `DSH_REMOTE_PORT` | 默认 22 |
-| `DSH_REMOTE_CWD` | 远端工作目录（默认 `/root/workspace`） |
-| `DSH_REMOTE_RIPGREP` | 可选：远端 rg 绝对路径（不设则自动探测） |
+| `DSH_REMOTE_HOST` | target host (required) |
+| `DSH_REMOTE_USER` | remote account (required) |
+| `DSH_REMOTE_PASSWORD` | first connect only; a key is provisioned after |
+| `DSH_REMOTE_PORT` | default 22 |
+| `DSH_REMOTE_CWD` | remote working directory (default `/root/workspace`) |
+| `DSH_REMOTE_RIPGREP` | optional absolute remote rg path (auto-discovered when unset) |
 
-> 同一个目录只有一个出处：`cwd` 与 `sandbox-policy.workspaceRoot` 都从 `DSH_REMOTE_CWD` 派生，保证“文件与命令在同一个世界”。
-
----
-
-## 安全模型（务必阅读）
-
-- **远端只有账号权限做围栏。** 完整模式下本机沙箱行被关闭：把命令与文件交给哪台机器，就是让 agent 以该账号的权限在那台机器上操作。请用**专用账号 / 最小权限 / 定期轮换密钥**，或经 ProxyJump 限定可达范围。
-- 连接密码与密钥只存本机 `<dsh home>/dsh-ssh-connections.json` 与身份目录；路由清单不含任何密钥。
-- 仅 GUI 模式（A 启动）不动本机文件/命令世界，风险面小得多——先用它熟悉，再上完整模式。
+> One directory, one source: `cwd` and `sandbox-policy.workspaceRoot` both derive from `DSH_REMOTE_CWD`, so files and commands always name the same world.
 
 ---
 
-## 限制（诚实清单）
+## Security model (read this)
 
-- **仅 GUI 模式不切 fs/subprocess**：文件/命令仍是本机，`dsh-ssh-routes/...` 只是占位目录（agent 指南会提示）。
-- **PTY 未实现**：`spawnTerminal` 在远端连接上不可用（helper PTY 子面未完成），终端类功能暂不可用；普通执行不受影响。
-- `ssh_exec` 单次调用串行执行；一次调用内可跑多条命令。
-- 远端 `read` 无行号标注；大文件请用 `sed -n` 开窗。
-- 执行远端命令的目标需要 Python helper（首次调用自动部署到该账号 home 下）。
+- **The remote account's own permissions are the only fence.** Full mode disables the local sandbox rows: whatever machine you hand files and commands to is a machine an agent operates as that account. Use a dedicated account, least privilege, rotated keys — or constrain reach via ProxyJump.
+- Connection passwords/keys live only in `<dsh home>/dsh-ssh-connections.json` and the identity dir; the route manifest contains no secrets.
+- GUI-only mode leaves the local file/command world untouched — start there before full mode.
 
 ---
 
-## 目录结构（概览）
+## Limitations (honest)
+
+- **GUI-only mode does not move fs/subprocess**: files/commands stay local; `dsh-ssh-routes/...` are placeholder dirs (the agent guide says so).
+- **No PTY yet**: `spawnTerminal` is unavailable on remote connections (helper PTY subsurface pending); ordinary spawns are unaffected.
+- `ssh_exec` calls are serialized per step; run multiple commands inside one call.
+- Remote `read` has no line numbers; window big files with `sed -n`.
+- Remote execution needs the Python helper on the target (auto-deployed to the account home on first use).
+
+---
+
+## Repository layout
 
 ```
-package.json               # 官方根包：dsh.bundle.patch -> bundle.gui.patch.yml
-bundle.gui.patch.yml       # 官方 GUI 用户层（dsh plugin add 自动应用）
-src/index.ts               # 官方根包入口（复用 packages/ssh-gui 插件面）
-lib/client.js              # 官方根包 client bundle（id dsh-remote-ssh）
-cordis.patch.yml           # 完整模式组合（one-world 切换 + 远端行）
+package.json               # official root bundle package (dsh.bundle.patch → bundle.gui.patch.yml)
+bundle.gui.patch.yml       # official GUI user layer (auto-applied by dsh plugin add)
+src/index.ts               # official root entry (re-exports the ssh-gui plugin surface)
+lib/client.js              # official root client bundle (id dsh-remote-ssh)
+cordis.patch.yml           # full-mode composition (one-world switch + remote rows)
+harness-patches/           # harness-fork patch + apply/rebuild README (Issue #1)
 packages/
-  ssh/                      # 连接 owner：认证阶梯、密钥置备、helper 通道与协议
-  fs-ssh/                   # ctx.fs → 远端文件系统（单次往返列出、流式限长读、CAS 写）
-  subprocess-ssh/           # ctx.subprocess → 远端进程（真实 pid/pgid、树级终止、spill 落远端）
-  remote-argv/              # 远端 rg/grep argv 翻译
-  ssh-gui/                  # GUI：注册表 /dsh-ssh RPC / 侧边栏 / React bundle + agent 体验
+  ssh/                     # connection owner: auth ladder, key provisioning, helper channel & protocol
+  fs-ssh/                  # ctx.fs → remote filesystem (single-trip listings, capped reads, CAS writes)
+  subprocess-ssh/          # ctx.subprocess → remote processes (real pid/pgid, tree-scoped kill, target-side spills)
+  remote-argv/             # remote rg/grep argv translation
+  ssh-gui/                 # GUI: registry / /dsh-ssh RPC / sidebar / React bundle + agent experience
 scripts/
-  install.mjs               # 本地开发安装（链接 + profile 自动注册；--remove 卸载）
-  build-gui-client.mjs      # 重建 client bundle（dev id dsh-ssh-gui / 官方 id dsh-remote-ssh）
-  test.mjs                  # 全部本地测试：node scripts/test.mjs
-specs/ DESIGN.md            # 契约、审计、设计依据（技术细节入口）
+  install.mjs              # local dev install (links + profile auto-register; --remove)
+  build-gui-client.mjs     # rebuild client bundles (dev id dsh-ssh-gui / official id dsh-remote-ssh)
+  test.mjs                 # all local tests: node scripts/test.mjs
+specs/ DESIGN.md           # contracts, audits, design rationale
 ```
 
-开发、测试、bundle 构建与设计依据见 [`DESIGN.md`](DESIGN.md)；与上游 fork 的差异见 `specs/upstream-dsh-ssh-audit.md`。连接侧边栏与目录浏览器为 `UynajGI/dsh-ssh` (MIT) 的 fork。
+Development, tests, bundle building and design rationale: [`DESIGN.md`](DESIGN.md); upstream-fork differences: `specs/upstream-dsh-ssh-audit.md`. Sidebar & browser are a fork of `UynajGI/dsh-ssh` (MIT). The same-name-title harness patch: [`harness-patches/`](harness-patches/README.md) / [Issue #1](https://github.com/aijunjiang/dsh-remote-ssh/issues/1).
 
 ---
 
