@@ -21,6 +21,34 @@ Manage connections and browse remote directories from the web GUI; each session 
 
 ---
 
+## Screenshots — from local GUI to a routed remote session
+
+Five steps, one flow: add a remote connection, browse the remote host, adopt one of its directories as a workspace, and start a session that genuinely runs there.
+
+**1 · Enter the workspace panel** — every remote workspace starts here: open the sidebar's **workspace** panel and click **Add workspace**.
+
+![1 · workspace panel add entry](docs/screenshots/01-add-workspace-entry.png)
+
+**2 · Pick a local directory — or create a remote connection** — the directory picker starts on the local machine; its **＋** button opens the new-connection form.
+
+![2 · workspace directory picker](docs/screenshots/02-workspace-picker-new-connection.png)
+
+**3 · Add the remote connection** — host/alias, port, user, key or password auth, and an optional ProxyJump chain; `~/.ssh/config` aliases autofill on blur, and you can **Test** the connection before saving.
+
+![3 · new remote connection form](docs/screenshots/03-new-remote-connection-form.png)
+
+**4 · Browse the remote and adopt a directory** — the saved connection opens straight into the remote tree; choose the directory that will become your workspace and open it.
+
+![4 · browse the remote and adopt a workspace](docs/screenshots/04-browse-remote-adopt-workspace.png)
+
+**5 · A session routed to the remote host** — the workspace now carries the host suffix (`home · root@…`), and a session started in it runs **on that machine**: here the agent schedules a 600 s background job over `ssh_job`, and the session toolbar shows it as **1 background job running** with a **Stop** control.
+
+![5 · routed session with a remote background job](docs/screenshots/05-routed-session-remote-job.png)
+
+> The **host suffix on workspace titles** and the **in-session job indicator / Stop** come with the harness-fork patch — see [`harness-patches/README.md`](harness-patches/README.md) and [Issue #1](https://github.com/aijunjiang/dsh-remote-ssh/issues/1). These screenshots were taken on a patched build.
+
+---
+
 ## Install
 
 Prereqs: DSH (deepseek-harness) and Node ≥ 22 locally; an SSH account on the target with `python3` and `bash`.
@@ -67,9 +95,9 @@ pnpm dsh web --patch <repo>/cordis.patch.yml
 
 ## Quick start (GUI)
 
-1. Open the web GUI → **Connections** panel → **Add** a connection (host, account, auth), **Test** it.
-2. Enter the connection, browse the remote tree, and "adopt as workspace" on the target directory.
-3. Start a new session in that workspace.
+1. **Add a connection** — sidebar → **workspace** panel → **Add workspace** → **＋** → fill the new-connection form (host, account, auth, optional ProxyJump), **Test** it, then save (screenshots 1–3).
+2. **Adopt a remote directory** — open the saved connection, browse the remote tree, and pick the target directory as your workspace (screenshot 4).
+3. **Start a routed session** — a new session in that workspace runs **on the remote host** (screenshot 5). The host suffix on workspace titles and the in-session job indicator/Stop need the harness-fork patch ([`harness-patches/README.md`](harness-patches/README.md), [Issue #1](https://github.com/aijunjiang/dsh-remote-ssh/issues/1)) — the screenshots above are from a patched build.
 
 The session is now **routed**: its runtime context shows e.g.
 

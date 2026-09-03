@@ -23,6 +23,34 @@
 
 ---
 
+## 效果演示：从本机 GUI 到远端路由会话（图文）
+
+五步走完一条链路：添加远程连接 → 浏览远端 → 把远端目录收为工作区 → 开一个真正跑在远端机器上的会话。
+
+**1 · 从这里进入**：每个远端工作区都从侧边栏「工作区」面板的「添加工作区」开始。
+
+![1 · 工作区添加入口](screenshots/01-add-workspace-entry.png)
+
+**2 · 选本机目录，或新建一条远程连接**：目录选择弹窗默认浏览本机；左下「＋」打开「新建远程连接」表单。
+
+![2 · 工作区目录选择](screenshots/02-workspace-picker-new-connection.png)
+
+**3 · 新建远程连接**：填写主机名/别名、端口、用户名，私钥或密码认证，可选 ProxyJump 跳板链；`~/.ssh/config` 别名失焦自动补全，保存前可「测试连接」。
+
+![3 · 新建远程连接表单](screenshots/03-new-remote-connection-form.png)
+
+**4 · 浏览远端并收为工作区**：保存的连接直接进入远端目录树，选择将成为工作区的目录并「连接并打开」。
+
+![4 · 浏览远端目录并设为工作区](screenshots/04-browse-remote-adopt-workspace.png)
+
+**5 · 路由会话：命令真的跑在远端**：工作区标题带上主机后缀（`home · root@…`），在该工作区开的会话执行在**远端机器**上——图中 agent 用 `ssh_job` 建了一个 600 秒的后台任务，会话顶部任务条实时显示「1 个后台任务运行中」并带「停止」。
+
+![5 · 远端路由会话与后台任务](screenshots/05-routed-session-remote-job.png)
+
+> **工作区标题的主机后缀**与会话内的 **job 指示 /「停止」**来自 harness fork 补丁——见 [`harness-patches/README.md`](../harness-patches/README.md) 与 [Issue #1](https://github.com/aijunjiang/dsh-remote-ssh/issues/1)。以上截图拍摄于已打补丁的构建。
+
+---
+
 ## 安装
 
 前置：
@@ -76,9 +104,9 @@ pnpm dsh web --patch <repo>/cordis.patch.yml
 
 ## 快速开始（GUI）
 
-1. 打开 web GUI，左侧 **Connections** 面板 **Add** 一个连接（目标 IP、账号、认证方式），**Test** 确认连通。
-2. 在 Connections 中进入该连接，浏览远端目录，在目标目录上“选择为工作区”。
-3. 以该工作区开一个新会话。
+1. **添加一条连接**：侧边栏「工作区」→「添加工作区」→ 左下「＋」新建远程连接，填好主机/账号/认证（可选跳板链），先「测试连接」再「保存连接」（截图 1–3）。
+2. **把远端目录收为工作区**：进入刚保存的连接，浏览远端目录树，在目标目录上把它选为工作区并「连接并打开」（截图 4）。
+3. **开一个路由会话**：用该工作区新建会话，会话就跑在**远端机器**上（截图 5）。工作区标题的主机后缀与会话内 job 指示/「停止」依赖 harness fork 补丁（[`harness-patches/README.md`](../harness-patches/README.md)、[Issue #1](https://github.com/aijunjiang/dsh-remote-ssh/issues/1)）——上面的截图来自已打补丁的构建。
 
 开出来的就是**路由会话**：运行时上下文会显示类似
 
