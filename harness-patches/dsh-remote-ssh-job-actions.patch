@@ -113,7 +113,7 @@ index bf15074079..15e325499d 100644
                )
              })}
 diff --git a/packages/client/ui-jobs/src/client/index.ts b/packages/client/ui-jobs/src/client/index.ts
-index 22dc2c8425..7a6a234314 100644
+index 22dc2c8425..b959277c77 100644
 --- a/packages/client/ui-jobs/src/client/index.ts
 +++ b/packages/client/ui-jobs/src/client/index.ts
 @@ -5,7 +5,8 @@
@@ -126,26 +126,36 @@ index 22dc2c8425..7a6a234314 100644
  import type {} from '@deepseek-ai/dsh-client-locale/client'
  import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
  import type {} from '@deepseek-ai/dsh-client-ui-session/client'
-@@ -29,6 +30,26 @@ export const inject = ['sessions', 'slots', 'locale']
+@@ -29,6 +30,36 @@ export const inject = ['sessions', 'slots', 'locale']
   */
  export function apply(ctx: ClientContext): void {
    ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-job: dictionaries')
 +
 +  /**
-+   * Browser->host stop: the session header list is read-only by itself; this
-+   * wrapper wires the host controller's `session.jobStop` remote (added by the
-+   * dsh-remote-ssh harness patch) so live rows can stop their job. Absent on
-+   * an unpatched host, the button simply never renders.
++   * Browser->host stop: the session header list is read-only by itself. The
++   * dsh-remote-ssh harness patches wire a Stop that first tries the generic
++   * slash-command channel (`/jobstop`, provided by the plugin host) and falls
++   * back to the controller's `session.jobStop` remote when that fork exposes
++   * it. If neither exists the call rejects and the button resets.
 +   */
-+  const callStop = (sessionId: string, jobId: string): unknown => {
++  const callStop = async (sessionId: string, jobId: string): Promise<unknown> => {
 +    const remote = (ctx as unknown as {
-+      remote?: { session?: { jobStop?(request: { sessionId: string; jobId: string }): unknown } }
++      remote?: {
++        commands?: { execute?(sessionId: string, line: string, images: unknown[]): Promise<unknown> }
++        session?: { jobStop?(request: { sessionId: string; jobId: string }): Promise<unknown> }
++      }
 +    }).remote
-+    const stop = remote?.session?.jobStop
-+    if (stop === undefined) {
-+      return Promise.resolve().then(() => { throw new Error('session.jobStop is not available on this host') })
++    const runCommand = remote?.commands?.execute
++    if (typeof runCommand === 'function') {
++      try {
++        return await runCommand(sessionId, `/jobstop ${jobId}`, [])
++      } catch {
++        // Fall through to the remote method below.
++      }
 +    }
-+    return stop({ sessionId, jobId })
++    const stop = remote?.session?.jobStop
++    if (typeof stop === 'function') return await stop({ sessionId, jobId })
++    throw new Error('no job stop path is available on this host')
 +  }
 +  const jobActionWithStop = (props: JobListActionProps): unknown =>
 +    _jsx(JobListAction, { ...props, stopJob: (jobId: string) => callStop((props as { sessionId: string }).sessionId, jobId) })
@@ -153,7 +163,7 @@ index 22dc2c8425..7a6a234314 100644
    ctx.slots.inject(
      'conversation.session.header.actions',
      () => ctx.slots.register({
-@@ -37,6 +58,6 @@ export function apply(ctx: ClientContext): void {
+@@ -37,6 +68,6 @@ export function apply(ctx: ClientContext): void {
        // After the subagent catalog: session lineage reads before process work.
        order: 20,
        locale: NS,

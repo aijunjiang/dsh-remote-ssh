@@ -353,4 +353,38 @@ const fakeConnection = (overrides: Partial<{ host: string; port: number; usernam
   }
 }
 
+// -- jobstop command: browser Stop routes through /jobstop -> jobs.kill ------
+
+{
+  const ctx = new Context()
+  let registered: { name?: string; handler?: (i: { agent: unknown; rawInput: string }) => Promise<unknown> } | undefined
+  let killedId: string | undefined
+  ctx.provide('commands')
+  ctx.commands = { register: (def: { name: string; handler: (i: { agent: unknown; rawInput: string }) => Promise<unknown> }) => { registered = def; return () => undefined } }
+  installAgentExperience(ctx)
+  await new Promise((resolve) => setTimeout(resolve, 10))
+
+  assert.equal(registered?.name, 'jobstop', 'a /jobstop command must be registered for the header Stop button')
+
+  // Without a jobs service the handler explains.
+  const noJobs = await registered!.handler!({ agent: { id: 's' }, rawInput: ' bash-7' })
+  assert.ok(String((noJobs as { text?: string }).text).includes('no background-job service'))
+
+  // With one, stopping routes through jobs.kill with the invoking agent.
+  ctx.provide('jobs')
+  ctx.jobs = {
+    start: () => 'x',
+    list: () => [],
+    kill: (id: string) => { killedId = id; return 'requested' },
+    read: () => ({ text: '' }),
+  }
+  await new Promise((resolve) => setTimeout(resolve, 10))
+  const stopped = await registered!.handler!({ agent: { id: 'sess-x' }, rawInput: ' bash-9 ' })
+  assert.equal(killedId, 'bash-9')
+  assert.ok(String((stopped as { text?: string }).text).includes('requested'))
+
+  const missing = await registered!.handler!({ agent: { id: 'sess-x' }, rawInput: '   ' })
+  assert.equal((missing as { kind?: string }).kind, 'error', 'missing job id must be an error')
+}
+
 console.log('ssh-gui agent-experience: ok — routed/local/degraded contexts, DSH_SSH_* env, ssh_exec and ssh_route_status verified')

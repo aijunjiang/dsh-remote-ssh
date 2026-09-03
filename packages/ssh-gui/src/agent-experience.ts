@@ -692,4 +692,31 @@ export function installAgentExperience(ctx: Context): void {
     })
     disposers.push(disposeJob)
   }
+
+  // Browser Stop: the ui-jobs header button routes through the always-present
+  // commands.execute channel to this /jobstop command (the session controller's
+  // @Remote jobStop depends on generated remote wiring that not every fork
+  // exposes). Killing here is owner-fenced by the invoking agent.
+  const commands = ctx.get('commands') as {
+    register(definition: {
+      name: string
+      description: string
+      handler(invocation: { agent: unknown; rawInput: string }): Promise<{ kind: 'success'; text?: string } | { kind: 'error'; text: string }>
+    }): () => void
+  } | undefined
+  if (commands !== undefined) {
+    const disposeCommand = commands.register({
+      name: 'jobstop',
+      description: 'Stop one DSH background job of this session (job id from ssh_exec background:true / ssh_job list, e.g. bash-3).',
+      handler: async (invocation) => {
+        const jobId = invocation.rawInput.trim().split(/\s+/)[0] ?? ''
+        if (jobId === '') return { kind: 'error', text: 'jobstop: expected a job id, e.g. bash-3' }
+        const jobs = jobsOf()
+        if (jobs === undefined) return { kind: 'error', text: 'jobstop: no background-job service on this host' }
+        const outcome = jobs.kill(jobId, invocation.agent, 'stopped from the session header')
+        return { kind: 'success', text: `jobstop: ${jobId} ${outcome}` }
+      },
+    })
+    disposers.push(disposeCommand)
+  }
 }
