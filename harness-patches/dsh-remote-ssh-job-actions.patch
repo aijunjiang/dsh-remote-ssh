@@ -1,0 +1,185 @@
+﻿diff --git a/packages/api/session-controller/src/index.ts b/packages/api/session-controller/src/index.ts
+index 572f895754..b9cb156048 100644
+--- a/packages/api/session-controller/src/index.ts
++++ b/packages/api/session-controller/src/index.ts
+@@ -354,6 +354,26 @@ export class SessionController extends TypertRemoteService {
+     return this.commands.cancel(request)
+   }
+ 
++  /**
++   * Stop one background job owned by a Session from the browser UI.
++   *
++   * The jobs registry fences by owner session id, so the caller only ever
++   * names (session, jobId) pairs the session it manages may own. The stop
++   * request is delivered to the job's hooks (for remote jobs: a real
++   * process-group kill on the target).
++   * @param request - owning Session id and the job id to stop.
++   * @returns `requested` for live work, otherwise `already-finished`.
++   * @throws when the session has no job registry or the job is foreign.
++   */
++  @Remote('jobStop')
++  jobStop(request: { sessionId: SessionId; jobId: string }): 'requested' | 'already-finished' {
++    const jobs = this.ctx.get('jobs') as { kill(id: string, caller?: unknown, reason?: string): string } | undefined
++    if (jobs === undefined) {
++      throw new Error('session-controller: no background-job registry is mounted')
++    }
++    return jobs.kill(request.jobId, { id: request.sessionId }, 'stopped from the session header') as 'requested' | 'already-finished'
++  }
++
+   /**
+    * Read one cold-safe, message-aligned Session history page.
+    * @param request - durable address, backward cursor, and page budget.
+diff --git a/packages/client/ui-jobs/src/client/JobListAction.module.css b/packages/client/ui-jobs/src/client/JobListAction.module.css
+index 2f475bd09c..776f7e6dd1 100644
+--- a/packages/client/ui-jobs/src/client/JobListAction.module.css
++++ b/packages/client/ui-jobs/src/client/JobListAction.module.css
+@@ -123,3 +123,25 @@
+ .duration {
+   font-variant-numeric: tabular-nums;
+ }
++
++/* dsh-remote-ssh addition: per-row stop for live jobs (harness patch) */
++.stop {
++  margin-left: 8px;
++  padding: 1px 8px;
++  font: inherit;
++  font-size: 12px;
++  line-height: 18px;
++  color: inherit;
++  background: transparent;
++  border: 1px solid currentColor;
++  border-radius: 4px;
++  cursor: pointer;
++  opacity: 0.85;
++}
++.stop:hover:not(:disabled) {
++  opacity: 1;
++}
++.stop:disabled {
++  cursor: default;
++  opacity: 0.5;
++}
+diff --git a/packages/client/ui-jobs/src/client/JobListAction.tsx b/packages/client/ui-jobs/src/client/JobListAction.tsx
+index bf15074079..15e325499d 100644
+--- a/packages/client/ui-jobs/src/client/JobListAction.tsx
++++ b/packages/client/ui-jobs/src/client/JobListAction.tsx
+@@ -8,7 +8,10 @@ import css from './JobListAction.module.css'
+ 
+ /** Full props for the session-header background-job action. */
+ export type JobListActionProps =
+-  PropsRuntime<'conversation.session.header.actions'> & PropsLocale<typeof NS>
++  PropsRuntime<'conversation.session.header.actions'> & PropsLocale<typeof NS> & {
++    /** Optional browser->host job stop (jobs.kill). Absent = read-only list. */
++    stopJob?: (jobId: string) => void | Promise<unknown>
++  }
+ 
+ /** Stable empty list so a session with no jobs keeps one array identity. */
+ const NO_TASKS: readonly JobView[] = []
+@@ -91,10 +94,11 @@ function ordered(jobs: readonly JobView[]): JobView[] {
+  * @param props - runtime slot currency plus the namespace translator.
+  * @returns the trigger and its popover list, or null when there is nothing to show.
+  */
+-export function JobListAction({ sessionId, useSessions, t }: JobListActionProps) {
++export function JobListAction({ sessionId, useSessions, stopJob, t }: JobListActionProps) {
+   const jobs = useSessions(state => state.jobsBySession[sessionId]) ?? NO_TASKS
+   const [open, setOpen] = useState(false)
+   const [now, setNow] = useState(() => Date.now())
++  const [stoppingId, setStoppingId] = useState<string | undefined>(undefined)
+   const rootRef = useRef<HTMLDivElement>(null)
+   const triggerRef = useRef<HTMLButtonElement>(null)
+ 
+@@ -172,6 +176,23 @@ export function JobListAction({ sessionId, useSessions, t }: JobListActionProps)
+                   >
+                     {duration}
+                   </span>
++                  {live && stopJob !== undefined
++                    ? (
++                      <button
++                        type="button"
++                        className={css.stop}
++                        disabled={stoppingId === job.id}
++                        onClick={() => {
++                          setStoppingId(job.id)
++                          void Promise.resolve(stopJob(job.id))
++                            .catch(() => undefined)
++                            .finally(() => setStoppingId(undefined))
++                        }}
++                      >
++                        {t(stoppingId === job.id ? 'action.stopping' : 'action.stop')}
++                      </button>
++                    )
++                    : null}
+                 </li>
+               )
+             })}
+diff --git a/packages/client/ui-jobs/src/client/index.ts b/packages/client/ui-jobs/src/client/index.ts
+index 22dc2c8425..7a6a234314 100644
+--- a/packages/client/ui-jobs/src/client/index.ts
++++ b/packages/client/ui-jobs/src/client/index.ts
+@@ -5,7 +5,8 @@
+  * holds no state of its own beyond popover visibility.
+  */
+ import type { Context as ClientContext } from '@deepseek-ai/cordis'
+-import { JobListAction } from './JobListAction.tsx'
++import { jsx as _jsx } from 'react/jsx-runtime'
++import { JobListAction, type JobListActionProps } from './JobListAction.tsx'
+ import type {} from '@deepseek-ai/dsh-client-locale/client'
+ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
+ import type {} from '@deepseek-ai/dsh-client-ui-session/client'
+@@ -29,6 +30,26 @@ export const inject = ['sessions', 'slots', 'locale']
+  */
+ export function apply(ctx: ClientContext): void {
+   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-job: dictionaries')
++
++  /**
++   * Browser->host stop: the session header list is read-only by itself; this
++   * wrapper wires the host controller's `session.jobStop` remote (added by the
++   * dsh-remote-ssh harness patch) so live rows can stop their job. Absent on
++   * an unpatched host, the button simply never renders.
++   */
++  const callStop = (sessionId: string, jobId: string): unknown => {
++    const remote = (ctx as unknown as {
++      remote?: { session?: { jobStop?(request: { sessionId: string; jobId: string }): unknown } }
++    }).remote
++    const stop = remote?.session?.jobStop
++    if (stop === undefined) {
++      return Promise.resolve().then(() => { throw new Error('session.jobStop is not available on this host') })
++    }
++    return stop({ sessionId, jobId })
++  }
++  const jobActionWithStop = (props: JobListActionProps): unknown =>
++    _jsx(JobListAction, { ...props, stopJob: (jobId: string) => callStop((props as { sessionId: string }).sessionId, jobId) })
++
+   ctx.slots.inject(
+     'conversation.session.header.actions',
+     () => ctx.slots.register({
+@@ -37,6 +58,6 @@ export function apply(ctx: ClientContext): void {
+       // After the subagent catalog: session lineage reads before process work.
+       order: 20,
+       locale: NS,
+-    }, JobListAction),
++    }, jobActionWithStop as never),
+   )
+ }
+diff --git a/packages/client/ui-jobs/src/client/locales.ts b/packages/client/ui-jobs/src/client/locales.ts
+index 70bb2e9e0f..fffdcd1e51 100644
+--- a/packages/client/ui-jobs/src/client/locales.ts
++++ b/packages/client/ui-jobs/src/client/locales.ts
+@@ -20,6 +20,8 @@ export const zh = {
+   'duration.hours': '{hours}小时{minutes}分',
+   'duration.title.live': '已运行 {duration}',
+   'duration.title.done': '耗时 {duration}',
++  'action.stop': '停止',
++  'action.stopping': '停止中…',
+ } as const
+ 
+ /** English dictionary, key-identical to the Chinese source of truth. */
+@@ -39,6 +41,8 @@ export const en: Record<JobKey, string> = {
+   'duration.hours': '{hours}h {minutes}m',
+   'duration.title.live': 'Running for {duration}',
+   'duration.title.done': 'Took {duration}',
++  'action.stop': 'Stop',
++  'action.stopping': 'Stopping…',
+ }
+ 
+ /** Key domain of the `job` namespace (zh is the source of truth). */
