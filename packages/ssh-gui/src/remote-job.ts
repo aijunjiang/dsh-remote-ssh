@@ -102,6 +102,19 @@ export function backgroundJobHooks(session: SshHelperSession, spec: RemoteJobSpe
   let killQueued = false
   let timedKill: ReturnType<typeof setTimeout> | undefined
 
+  // Function-scope killers: shared by the spawn path (after pid/pgid arrive)
+  // and by cancel() from the jobs registry.
+  const sendKill = (signalName: 'TERM' | 'KILL'): void => {
+    if (pgid < 0) {
+      killQueued = true
+      return
+    }
+    void session.request('kill', { pgid, signal: signalName }).catch(() => undefined)
+  }
+  const scheduleHardKill = (): void => {
+    if (timedKill === undefined) timedKill = setTimeout(() => sendKill('KILL'), KILL_GRACE_MS)
+  }
+
   const done = new Promise<RemoteJobOutcome>((resolvePromise) => {
     const holder: { release(): void } = { release: () => undefined }
     const settle = (outcome: RemoteJobOutcome): void => {
@@ -110,16 +123,6 @@ export function backgroundJobHooks(session: SshHelperSession, spec: RemoteJobSpe
       if (timedKill !== undefined) clearTimeout(timedKill)
       holder.release()
       resolvePromise(outcome)
-    }
-    const sendKill = (signalName: 'TERM' | 'KILL'): void => {
-      if (pgid < 0) {
-        killQueued = true
-        return
-      }
-      void session.request('kill', { pgid, signal: signalName }).catch(() => undefined)
-    }
-    const scheduleHardKill = (): void => {
-      if (timedKill === undefined) timedKill = setTimeout(() => sendKill('KILL'), KILL_GRACE_MS)
     }
 
     // Env first, then register listeners and spawn. Events can only arrive

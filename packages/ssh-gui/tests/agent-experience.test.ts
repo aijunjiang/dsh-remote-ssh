@@ -254,6 +254,15 @@ const fakeConnection = (overrides: Partial<{ host: string; port: number; usernam
     assert.equal(typeof startedSpec?.run, 'function')
     assert.equal((startedSpec?.owner as { id?: string } | undefined)?.id, 'sess-routed', 'the job must be owned by the calling session')
 
+    // Auto-registration: a clearly background-style command registers a job
+    // even without the explicit flag.
+    const autoJob = await execTool!.execute(
+      { command: 'setsid bash -c "sleep 9" </dev/null >run.log 2>&1 &' },
+      { agent: { id: 'sess-routed' }, signal: new AbortController().signal },
+    )
+    assert.ok(String(autoJob).includes('background job'), 'background-style commands must auto-register')
+    assert.equal(typeof startedSpec?.run, 'function')
+
     // ssh_job: list / stop / read the session's remote background jobs.
     const jobTool = registeredTools.find(tool => tool.name === SSH_JOB_TOOL)
     assert.ok(jobTool !== undefined, 'the ssh_job tool must be registered')
