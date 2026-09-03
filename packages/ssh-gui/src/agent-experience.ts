@@ -105,6 +105,7 @@ interface ToolsLike {
 /** Tool schema names. */
 export const SSH_EXEC_TOOL = 'ssh_exec'
 export const SSH_ROUTE_STATUS_TOOL = 'ssh_route_status'
+export const SSH_JOB_TOOL = 'ssh_job'
 
 /** The runtime-context block names. */
 export const ROUTE_CONTEXT_NAME = 'ssh:route'
@@ -287,7 +288,7 @@ interface SshExecArgs {
   background?: unknown
 }
 
-/** Minimal `ctx.jobs` surface used to register remote background tasks. */
+/** Minimal `ctx.jobs` surface used to register and manage remote background tasks. */
 interface JobsLike {
   start(spec: {
     kind: string
@@ -296,6 +297,9 @@ interface JobsLike {
     owner?: unknown
     run(): unknown
   }): string
+  list(caller?: unknown): Array<{ id: string; kind: string; label: string; status: string; detail?: string }>
+  kill(id: string, caller?: unknown, reason?: string): string
+  read(id: string, caller?: unknown): { text: string }
 }
 
 /** One-line label for the session job indicator. */
@@ -460,6 +464,47 @@ async function executeRouteStatus(
   }
 }
 
+/** Options accepted by `ssh_job`. */
+interface SshJobArgs {
+  action?: unknown
+  job?: unknown
+}
+
+/** One `ssh_job` call: list / stop / read the caller's remote background jobs. */
+function executeSshJob(
+  jobs: JobsLike | undefined,
+  args: SshJobArgs,
+  exec: ExecutionLike,
+): string {
+  if (jobs === undefined) {
+    return 'ssh_job: this host provides no background-job service (`ctx.jobs`); there is nothing to manage.'
+  }
+  const action = args.action
+  if (action === 'list') {
+    const rows = jobs.list(exec.agent)
+    if (rows.length === 0) return 'ssh_job: no background jobs for this session.'
+    return rows
+      .map(row => `${row.id} [${row.status}] ${row.kind} ${row.label}${row.detail !== undefined && row.detail !== '' ? ` — ${row.detail}` : ''}`)
+      .join('\n')
+  }
+  if (action !== 'stop' && action !== 'read') {
+    return 'ssh_job: `action` must be one of list | stop | read.'
+  }
+  const job = typeof args.job === 'string' && args.job.trim() !== '' ? args.job : undefined
+  if (job === undefined) {
+    return 'ssh_job: `job` (the id from the background result, e.g. bash-3) is required for stop/read.'
+  }
+  if (action === 'stop') {
+    const result = jobs.kill(job, exec.agent, 'stopped via ssh_job')
+    return result === 'requested'
+      ? `ssh_job: ${job} stop requested — the remote process group is being terminated.`
+      : `ssh_job: ${job} ${result}.`
+  }
+  const read = jobs.read(job, exec.agent)
+  const text = typeof read.text === 'string' ? read.text : ''
+  return text !== '' ? text : `ssh_job: ${job} has no output yet.`
+}
+
 /**
  * Install the agent-facing registrations. Each service is optional: mounts
  * without `systemPrompt`/`shellEnv`/`tools`/`sessions`/`sshRegistry` simply
@@ -545,8 +590,10 @@ export function installAgentExperience(ctx: Context): void {
         + 'Output capped at 256 KiB per stream (stdout/stderr) with truncation marked; every result is checked '
         + 'against an end sentinel — a lost-output (exit 0 with no bytes and no sentinel) auto-retries once, and '
         + 'an exit-0 "(no output)" marked sentinel-verified is genuinely empty. '
-        + 'Background jobs: start them DETACHED (`setsid bash -c \'…\' </dev/null >run.log 2>&1 &`); the call then '
-        + 'returns immediately and "returned" only means started — verify via run.log/run.pid, never pkill -f (it can kill your own shell). '
+        + 'Background jobs: pass `background: true` to register a DSH background job for this session (shown in the '
+        + 'job indicator next to the session title; manage it with ssh_job list/stop/read). If the host lacks a jobs '
+        + 'service, start detached (`setsid bash -c \'…\' </dev/null >run.log 2>&1 &`) instead — returning only means '
+        + 'started, never finished; verify via run.log/run.pid, never pkill -f (it can kill your own shell). '
         + 'Use ONLY when the runtime context shows this session is on an SSH route; on a local session the tool refuses, '
         + 'and on a degraded (spelled-but-unresolvable) route it says so and lists recovery steps. '
         + 'When a route fails, call ssh_route_status first. '
@@ -603,5 +650,28 @@ export function installAgentExperience(ctx: Context): void {
       execute: async (args, exec) => await executeRouteStatus(sessionsOf(), registryOf(), args as RouteStatusArgs, exec),
     })
     disposers.push(disposeStatus)
+
+    const disposeJob = tools.register({
+      name: SSH_JOB_TOOL,
+      description:
+        'Manage the DSH background jobs of the CURRENT session — the ones started with ssh_exec `background: true` '
+        + '(they run on the session\'s SSH route). `action: list` shows ids/status/labels; `action: stop` with `job` '
+        + '(e.g. bash-3) requests a real remote process-group kill; `action: read` with `job` returns the job\'s '
+        + 'log tail. Call this when the user asks to stop or check a background task, or to tidy finished ones.',
+      parameters: {
+        type: 'object',
+        properties: {
+          action: { type: 'string', enum: ['list', 'stop', 'read'], description: 'What to do.' },
+          job: { type: 'string', description: 'The job id (e.g. bash-3) for stop/read.' },
+        },
+        required: ['action'],
+      },
+      output: {
+        schema: { type: 'string' },
+        render: (_args, value) => [{ type: 'text', text: String(value) }],
+      },
+      execute: async (args, exec) => executeSshJob(jobsOf(), args as SshJobArgs, exec),
+    })
+    disposers.push(disposeJob)
   }
 }

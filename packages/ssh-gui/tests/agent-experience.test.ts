@@ -20,6 +20,7 @@ import {
   remoteWorldOf,
   ROUTE_CONTEXT_NAME,
   SSH_EXEC_TOOL,
+  SSH_JOB_TOOL,
   SSH_ROUTE_STATUS_TOOL,
   USAGE_CONTEXT_NAME,
 } from '../src/agent-experience.ts'
@@ -232,8 +233,15 @@ const fakeConnection = (overrides: Partial<{ host: string; port: number; usernam
     // With a jobs service the task is registered as a session job; run() is
     // only invoked by the registry (never in this unit test, so no network).
     let startedSpec: { kind?: string; label?: string; run?: () => unknown; owner?: unknown } | undefined
+    let killedJob: string | undefined
+    let readJob: string | undefined
     ctx.provide('jobs')
-    ctx.jobs = { start: (spec: { kind: string; label: string; run(): unknown; owner?: unknown }) => { startedSpec = spec; return 'bash-42' } }
+    ctx.jobs = {
+      start: (spec: { kind: string; label: string; run(): unknown; owner?: unknown }) => { startedSpec = spec; return 'bash-42' },
+      list: () => [{ id: 'bash-42', kind: 'bash', label: 'sleep 30', status: 'running' }],
+      kill: (id: string) => { killedJob = id; return 'requested' },
+      read: (id: string) => { readJob = id; return { text: 'tick\n' } },
+    }
     await new Promise((resolve) => setTimeout(resolve, 10))
     const bgJob = await execTool!.execute(
       { command: 'sleep 30', background: true },
@@ -245,6 +253,20 @@ const fakeConnection = (overrides: Partial<{ host: string; port: number; usernam
     assert.equal(startedSpec?.label, 'sleep 30')
     assert.equal(typeof startedSpec?.run, 'function')
     assert.equal((startedSpec?.owner as { id?: string } | undefined)?.id, 'sess-routed', 'the job must be owned by the calling session')
+
+    // ssh_job: list / stop / read the session's remote background jobs.
+    const jobTool = registeredTools.find(tool => tool.name === SSH_JOB_TOOL)
+    assert.ok(jobTool !== undefined, 'the ssh_job tool must be registered')
+    const listJobs = await jobTool!.execute({ action: 'list' }, { agent: { id: 'sess-routed' }, signal: new AbortController().signal })
+    assert.ok(String(listJobs).includes('bash-42') && String(listJobs).includes('running'), 'job list must show the running job')
+    const stopJob = await jobTool!.execute({ action: 'stop', job: 'bash-42' }, { agent: { id: 'sess-routed' }, signal: new AbortController().signal })
+    assert.equal(killedJob, 'bash-42')
+    assert.ok(String(stopJob).includes('stop requested'), 'stop must route through jobs.kill')
+    const readLog = await jobTool!.execute({ action: 'read', job: 'bash-42' }, { agent: { id: 'sess-routed' }, signal: new AbortController().signal })
+    assert.equal(readJob, 'bash-42')
+    assert.ok(String(readLog).includes('tick'), 'read must surface the job output tail')
+    const badAction = await jobTool!.execute({ action: 'nope' }, { agent: { id: 'sess-routed' }, signal: new AbortController().signal })
+    assert.ok(String(badAction).includes('list | stop | read'), 'unknown action must be rejected with usage')
   } finally {
     if (previousHome === undefined) delete process.env.DSH_HOME
     else process.env.DSH_HOME = previousHome
