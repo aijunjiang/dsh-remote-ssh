@@ -116,7 +116,7 @@ index bf15074079..1fc8d46720 100644
                )
              })}
 diff --git a/packages/client/ui-jobs/src/client/index.ts b/packages/client/ui-jobs/src/client/index.ts
-index 22dc2c8425..f354ac5ccf 100644
+index 22dc2c8425..429940ad4b 100644
 --- a/packages/client/ui-jobs/src/client/index.ts
 +++ b/packages/client/ui-jobs/src/client/index.ts
 @@ -5,7 +5,8 @@
@@ -129,6 +129,17 @@ index 22dc2c8425..f354ac5ccf 100644
  import type {} from '@deepseek-ai/dsh-client-locale/client'
  import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
  import type {} from '@deepseek-ai/dsh-client-ui-session/client'
+@@ -20,8 +21,8 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
+ 
+ export type { JobListActionProps } from './JobListAction.tsx'
+ 
+-/** Required services for locale registration and header-slot contribution. */
+-export const inject = ['sessions', 'slots', 'locale']
++/** Required services for locale registration, header-slot contribution, and the Stop remote. */
++export const inject = ['sessions', 'slots', 'locale', 'remote', 'remote.commands', 'remote.session']
+ 
+ /**
+  * Client plugin body: register the dictionaries and the header action.
 @@ -29,6 +30,41 @@ export const inject = ['sessions', 'slots', 'locale']
   */
  export function apply(ctx: ClientContext): void {
