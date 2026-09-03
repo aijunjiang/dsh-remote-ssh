@@ -201,11 +201,14 @@ function usageContextText(facts: RouteFacts, world: RemoteWorld): string {
     'Working in this SSH session:',
     `- Route \`${facts.id}\` → ${facts.username}@${facts.host} (remote cwd ${facts.path}). ${channel}`,
     '- Run remote commands with ssh_exec: pass the WHOLE script as one `command` string (no local quoting layer), locale is fixed to C.',
+    '- LONG-RUNNING or background remote tasks: start them DETACHED so ssh_exec returns immediately, e.g. command: `setsid bash -c \'python3 display.py\' </dev/null >run.log 2>&1 &`. Cut stdin (</dev/null) and redirect ALL output — a command that keeps a pipe open (a foreground loop without detach) makes the exec channel wait for EOF and looks hung. ssh_exec returning only means "started", never "finished".',
+    '- Verify a background task via its log file (`tail -f run.log`) and a pidfile (`... & echo $! > run.pid`); kill via pidfile (`kill $(cat run.pid)` / `kill -9`). Do NOT use `pkill -f <pattern>`: it can match your own command line and kill the shell running it. Output redirected to files is block-buffered — for reliable streaming logs run python with `-u` or `PYTHONUNBUFFERED=1`, and flush after critical prints.',
+    '- Give short commands the default timeout; raise `timeoutMs` only when a genuinely long FOREGROUND job needs it.',
     '- Output is capped at 256 KiB per stream (stdout/stderr); truncation is marked. The engine verifies every result with an end sentinel: an exit-0 "(no output)" result marked sentinel-verified is genuinely empty; if the result says output was lost, it auto-retried and you must NOT treat an empty result as fact — re-run or narrow the command.',
     '- Do NOT hand-roll a local ssh.exe/ssh call — on Windows confined sessions it cannot spawn and wastes turns/approvals. ssh_exec calls are serialized per step and reuse one helper connection per route; run multiple commands inside one call when you can.',
     '- Never treat mirrored dsh-ssh-routes/<id>/... contents as project truth: they are placeholders. Read/write through the remote world.',
     '- Remote READS when the providers are not mounted: text with `cat PATH`; window big files with `sed -n \'200,400p\' PATH` (output has no line numbers). Never use the LOCAL read/glob/grep/write/edit tools on remote paths — they hit the empty placeholders and silently "succeed" on the wrong machine.',
-    '- Remote WRITES when the providers are not mounted: quoted heredoc through ssh_exec, e.g. command: `cat > /home/haitang/x/notes.txt <<\'EOF\'\\n…content…\\nEOF` (use absolute POSIX paths). Do NOT use the local write/edit tools for remote files.',
+    '- Remote WRITES when the providers are not mounted: quoted heredoc through ssh_exec, e.g. command: `cat > /home/dev/projects/notes.txt <<\'EOF\'\\n…content…\\nEOF` (use absolute POSIX paths). Do NOT use the local write/edit tools for remote files.',
     '- The remote world is fenced by the remote account\'s own permissions only — no local sandbox applies on the target. Host-local concerns (approval, credentials, GUI, $DSH_HOME) still live on this machine.',
     '- If a route errors or files look gone: run ssh_route_status (lists known connections and the manifest path), have the connection re-added/tested in the sidebar, then retry. Never guess the target by enumerating ~/.ssh/config.',
     '- Routed shell executions carry DSH_SSH_ROUTE_ID/HOST/USER/PORT/REMOTE_CWD — prefer DSH_SSH_REMOTE_CWD over path guessing.',
@@ -490,6 +493,8 @@ export function installAgentExperience(ctx: Context): void {
         + 'Output capped at 256 KiB per stream (stdout/stderr) with truncation marked; every result is checked '
         + 'against an end sentinel — a lost-output (exit 0 with no bytes and no sentinel) auto-retries once, and '
         + 'an exit-0 "(no output)" marked sentinel-verified is genuinely empty. '
+        + 'Background jobs: start them DETACHED (`setsid bash -c \'…\' </dev/null >run.log 2>&1 &`); the call then '
+        + 'returns immediately and "returned" only means started — verify via run.log/run.pid, never pkill -f (it can kill your own shell). '
         + 'Use ONLY when the runtime context shows this session is on an SSH route; on a local session the tool refuses, '
         + 'and on a degraded (spelled-but-unresolvable) route it says so and lists recovery steps. '
         + 'When a route fails, call ssh_route_status first. '
