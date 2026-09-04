@@ -56,12 +56,8 @@
                      },
     "peerDependencies":  {
                              "react":  "^18.2.0",
-                             "react-dom":  "^18.2.0",
-                             "dsh-better-sidebar": ">=0.18.0"
+                             "react-dom":  "^18.2.0"
                          },
-    "peerDependenciesMeta": {
-        "dsh-better-sidebar": { "optional": true }
-    },
     "license":  "MIT",
     "repository":  {
                        "type":  "git",

@@ -37,33 +37,12 @@ interface WireEntry {
   hidden: boolean
 }
 
-/** One wire file/directory row for the full file explorer. */
-interface WireFileEntry {
-  name: string
-  path: string
-  isDir: boolean
-  isSymlink: boolean
-  broken: boolean
-  hidden: boolean
-  size: number
-  mtime: number
-}
-
 /** One remote listing level for the client browser. */
 interface WireListing {
   path: string
   home: string
   crumbs: WireEntry[]
   entries: WireEntry[]
-  truncated: boolean
-}
-
-/** One remote listing level for the full file explorer. */
-interface WireFileListing {
-  path: string
-  home: string
-  crumbs: WireEntry[]
-  entries: WireFileEntry[]
   truncated: boolean
 }
 
@@ -273,149 +252,6 @@ export function apply(ctx: Context, config: WebChannelConfig): void {
     }
   }
 
-  /** List one remote level (files AND directories) over the SFTP channel. */
-  const listAllRemote = async (id: string, target: string | undefined, signal?: AbortSignal): Promise<WireFileListing> => {
-    const connection = requireConnection(id)
-    const resolvedTarget = target ?? await remoteHome(id, signal)
-    if (!posix.isAbsolute(resolvedTarget)) {
-      throw new Error(`dsh-ssh: cannot list ${resolvedTarget}: not a fully qualified path`)
-    }
-    const home = await remoteHome(id, signal)
-    const sftp: SFTPWrapper = await connection.getSftp(signal)
-    const listed = await new Promise<Array<{ filename: string; attrs: Stats }>>((resolvePromise, reject) => {
-      sftp.readdir(resolvedTarget, (error, entries) => {
-        if (error !== undefined) reject(error)
-        else resolvePromise(entries)
-      })
-    })
-    const entries: WireFileEntry[] = []
-    let truncated = false
-    for (const entry of listed) {
-      signal?.throwIfAborted()
-      const candidate = entry.filename
-      // Skip '.' and '..'
-      if (candidate === '.' || candidate === '..') continue
-      const isDir = entry.attrs.isDirectory()
-      const isSymlink = entry.attrs.isSymbolicLink()
-      let broken = false
-      // Resolve symlink targets; mark broken links
-      if (isSymlink && !isDir) {
-        try {
-          const stats = await new Promise<Stats>((resolvePromise, reject) => {
-            sftp.stat(posix.join(resolvedTarget, candidate), (error, value) => {
-              if (error !== undefined) reject(error)
-              else resolvePromise(value)
-            })
-          })
-          // If the symlink target is a directory, treat it as a directory
-          const resolvedIsDir = stats.isDirectory()
-          if (resolvedIsDir) {
-            entries.push({
-              name: candidate, path: posix.join(resolvedTarget, candidate),
-              isDir: true, isSymlink: true, broken: false,
-              hidden: candidate.startsWith('.'), size: stats.size, mtime: stats.mtime,
-            })
-            continue
-          }
-        } catch {
-          if (signal?.aborted === true) throw signal.reason
-          broken = true
-        }
-      }
-      if (entries.length >= maxEntries) {
-        truncated = true
-        break
-      }
-      entries.push({
-        name: candidate, path: posix.join(resolvedTarget, candidate),
-        isDir: isDir || (isSymlink && !broken), isSymlink, broken,
-        hidden: candidate.startsWith('.'),
-        size: entry.attrs.size, mtime: entry.attrs.mtime,
-      })
-    }
-    // Sort: directories first, then by name (case-insensitive)
-    entries.sort((a, b) => {
-      if (a.isDir !== b.isDir) return a.isDir ? -1 : 1
-      return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
-    })
-    return { path: resolvedTarget, home, crumbs: ancestryCrumbs(resolvedTarget), entries, truncated }
-  }
-
-  /** Read one remote file over the SFTP channel (base64, with a size cap). */
-  const readRemoteFile = async (id: string, path: string, signal?: AbortSignal): Promise<{ content: string; size: number; mimeType: string }> => {
-    if (!posix.isAbsolute(path)) throw new Error(`dsh-ssh: cannot read ${JSON.stringify(path)}: not a fully qualified path`)
-    const connection = requireConnection(id)
-    const sftp = await connection.getSftp(signal)
-    // Stat first to get the file size and avoid reading directories
-    const stats = await new Promise<Stats>((resolvePromise, reject) => {
-      sftp.stat(path, (error, value) => {
-        if (error !== undefined) reject(error)
-        else resolvePromise(value)
-      })
-    })
-    if (stats.isDirectory()) throw new Error(`dsh-ssh: ${path} is a directory, not a file`)
-    const limit = 4 * 1024 * 1024 // 4 MB cap
-    if (stats.size > limit) {
-      throw new Error(`dsh-ssh: ${path} is ${stats.size} bytes, exceeds the ${limit} byte read limit`)
-    }
-    const buffer = await new Promise<Buffer>((resolvePromise, reject) => {
-      sftp.readFile(path, (error, data) => {
-        if (error !== undefined) reject(error)
-        else resolvePromise(data as Buffer)
-      })
-    })
-    const ext = posix.extname(path).toLowerCase()
-    const mimeType = mimeFromExt(ext)
-    return { content: buffer.toString('base64'), size: buffer.length, mimeType }
-  }
-
-  /** Stat one remote path. */
-  const statRemote = async (id: string, path: string, signal?: AbortSignal): Promise<{ isDir: boolean; isSymlink: boolean; size: number; mtime: number }> => {
-    if (!posix.isAbsolute(path)) throw new Error(`dsh-ssh: cannot stat ${JSON.stringify(path)}: not a fully qualified path`)
-    const connection = requireConnection(id)
-    const sftp = await connection.getSftp(signal)
-    const stats = await new Promise<Stats>((resolvePromise, reject) => {
-      sftp.stat(path, (error, value) => {
-        if (error !== undefined) reject(error)
-        else resolvePromise(value)
-      })
-    })
-    // Use lstat to detect symlinks
-    let isSymlink = false
-    try {
-      const lstats = await new Promise<Stats>((resolvePromise, reject) => {
-        sftp.lstat(path, (error, value) => {
-          if (error !== undefined) reject(error)
-          else resolvePromise(value)
-        })
-      })
-      isSymlink = lstats.isSymbolicLink()
-    } catch {
-      // lstat failed, use stat result only
-    }
-    return { isDir: stats.isDirectory(), isSymlink, size: stats.size, mtime: stats.mtime }
-  }
-
-  /** Simple MIME type guess from file extension. */
-  const mimeFromExt = (ext: string): string => {
-    const map: Record<string, string> = {
-      '.txt': 'text/plain', '.md': 'text/markdown', '.json': 'application/json',
-      '.js': 'text/javascript', '.ts': 'text/typescript', '.jsx': 'text/javascript',
-      '.tsx': 'text/typescript', '.css': 'text/css', '.html': 'text/html',
-      '.xml': 'text/xml', '.yaml': 'text/yaml', '.yml': 'text/yaml',
-      '.toml': 'text/plain', '.ini': 'text/plain', '.cfg': 'text/plain',
-      '.py': 'text/x-python', '.rb': 'text/x-ruby', '.go': 'text/x-go',
-      '.rs': 'text/x-rust', '.java': 'text/x-java', '.c': 'text/x-c',
-      '.h': 'text/x-c', '.cpp': 'text/x-c++', '.hpp': 'text/x-c++',
-      '.sh': 'text/x-shellscript', '.bash': 'text/x-shellscript',
-      '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
-      '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml',
-      '.ico': 'image/x-icon', '.bmp': 'image/bmp',
-      '.pdf': 'application/pdf',
-    }
-    return map[ext] ?? 'application/octet-stream'
-  }
-
   /** Create one child directory on the remote host (SFTP mkdir, non-recursive). */
   const createRemoteDirectory = async (id: string, path: string, name: string, signal?: AbortSignal): Promise<string> => {
     if (!posix.isAbsolute(path)) throw new Error(`dsh-ssh: cannot create under ${JSON.stringify(path)}: not a fully qualified path`)
@@ -488,24 +324,6 @@ export function apply(ctx: Context, config: WebChannelConfig): void {
           }
           const created = await createRemoteDirectory(input.id.trim(), input.path, input.name, signal)
           return { ok: true, value: { path: created } }
-        }
-        case 'browse.listAll': {
-          const input = requirePayload(payload, isBrowsePayload, 'browse.listAll')
-          return { ok: true, value: await listAllRemote(input.id.trim(), input.path, signal) }
-        }
-        case 'browse.readFile': {
-          const input = requirePayload(payload, isRecord, 'browse.readFile')
-          if (!isString(input.id) || !isString(input.path)) {
-            throw new Error('bad-request: browse.readFile needs id and path')
-          }
-          return { ok: true, value: await readRemoteFile(input.id.trim(), input.path, signal) }
-        }
-        case 'browse.stat': {
-          const input = requirePayload(payload, isRecord, 'browse.stat')
-          if (!isString(input.id) || !isString(input.path)) {
-            throw new Error('bad-request: browse.stat needs id and path')
-          }
-          return { ok: true, value: await statRemote(input.id.trim(), input.path, signal) }
         }
         case 'session.route': {
           // The host's session service `mkdir`s the project directory through
