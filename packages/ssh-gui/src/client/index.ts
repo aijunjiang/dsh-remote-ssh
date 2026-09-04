@@ -6,9 +6,14 @@
  * shared web transport: local listing through the `uiWorkspace` service (the
  * Host's `directoryPicker` browse capability) and remote listing/connection
  * management through the package's `/dsh-ssh` RPC channel.
+ *
+ * When dsh-better-sidebar is installed, a "Remote Files" tab is registered
+ * that browses remote hosts over SFTP. Without better-sidebar, the tab is
+ * silently skipped — remote-ssh works unchanged.
  */
 
 import type { Context } from '@deepseek-ai/cordis'
+import { RemoteFileBrowser } from './RemoteFileTree.tsx'
 import { SshWorkspaceFlow } from './flow.tsx'
 
 /** Local, self-contained wire contracts (no cross-plugin value imports). */
@@ -71,6 +76,24 @@ declare module '@deepseek-ai/cordis' {
       register(options: { name: string; inject?: (...args: never[]) => Record<string, unknown> }, component: unknown): () => void
     }
     uiWorkspace: ClientUiWorkspace
+    /** Optional: dsh-better-sidebar's service, available when the plugin is installed. */
+    betterSidebar?: {
+      registerTab(descriptor: {
+        id: string
+        type: string
+        title: string
+        icon?: unknown
+        component: () => unknown
+        badge?: { text: string; color?: string }
+      }): () => void
+      registerFileViewer(descriptor: {
+        id: string
+        extensions: string[]
+        label: string
+        component: (props: { path: string; content: string; mimeType: string }) => unknown
+      }): () => void
+      openTab(params: { type: string; title: string; id: string }): void
+    }
   }
 }
 
@@ -104,4 +127,31 @@ export function apply(ctx: Context): void {
         name: 'sidebar.workspaces.directoryFlow', inject: injected,
       }, SshWorkspaceFlow)
     }))
+
+  // ── better-sidebar integration ──────────────────────────────────────
+  // When dsh-better-sidebar is installed, register a "Remote Files" tab
+  // that browses the remote host over SFTP. Without better-sidebar, the
+  // service is undefined and this block is a no-op — remote-ssh's
+  // existing connection manager and workspace picker are unaffected.
+  const sidebar = ctx.betterSidebar
+  if (sidebar !== undefined) {
+    ctx.effect(() => {
+      const rpc = (endpoint: string, payload?: unknown, signal?: AbortSignal) => {
+        const connection = ctx.get('connection') as ClientConnection | undefined
+        if (connection === undefined) {
+          return Promise.resolve({ ok: false, error: { code: 'internal', message: 'dsh-ssh: transport unavailable' } } as WireResult)
+        }
+        return connection.rpc.call('/dsh-ssh', endpoint, (payload ?? {}) as Record<string, unknown>, signal)
+      }
+
+      const disposeTab = sidebar.registerTab({
+        id: 'dsh-remote-ssh:remote-files',
+        type: 'dsh-remote-ssh:remote-files',
+        title: 'Remote Files',
+        component: () => RemoteFileBrowser({ rpc }),
+      })
+
+      return () => { disposeTab() }
+    }, 'dsh-ssh: better-sidebar remote-files tab')
+  }
 }
