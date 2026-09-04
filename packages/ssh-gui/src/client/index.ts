@@ -153,7 +153,7 @@ export function apply(ctx: Context): void {
         id: 'dsh-remote-ssh:remote-files',
         type: 'dsh-remote-ssh:remote-files',
         title: 'Remote Files',
-        component: () => RemoteFileBrowser({ rpc }),
+        component: (props) => RemoteFileBrowser({ rpc, scope: props.scope }),
       })
 
       return () => { disposeTab() }

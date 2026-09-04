@@ -411,11 +411,35 @@ function FileTreeRow({ entry, depth, expanded, childCache, onToggle, onOpen, sel
 }
 
 // ---------------------------------------------------------------------------
-// RemoteFileBrowser — connection selector + RemoteFileTree
+// RemoteFileBrowser — auto-detects the session's SSH route, falls back to
+// connection selector when the session is local.
 // ---------------------------------------------------------------------------
+
+/** Parse an SSH route from a session workspace cwd. */
+function parseRouteFromCwd(cwd: string): { connectionId: string; path: string } | null {
+  // ssh://<id>/<path>
+  if (cwd.startsWith('ssh://')) {
+    const rest = cwd.slice('ssh://'.length)
+    const sep = rest.indexOf('/')
+    if (sep > 0) return { connectionId: rest.slice(0, sep), path: rest.slice(sep) }
+    return null
+  }
+  // dsh-ssh-routes/<id>/<path> (local placeholder)
+  const prefix = 'dsh-ssh-routes/'
+  if (cwd.includes(prefix)) {
+    const idx = cwd.indexOf(prefix)
+    const after = cwd.slice(idx + prefix.length)
+    const sep = after.indexOf('/')
+    if (sep > 0) return { connectionId: after.slice(0, sep), path: after.slice(sep) }
+    return null
+  }
+  return null
+}
 
 export interface RemoteFileBrowserProps {
   rpc: (endpoint: string, payload?: Record<string, unknown>, signal?: AbortSignal) => Promise<WireResult>
+  /** Current session scope from better-sidebar's TabComponentProps. */
+  scope?: { sessionId: string; cwd?: string }
 }
 
 interface ConnectionView {
@@ -426,13 +450,34 @@ interface ConnectionView {
   username: string
 }
 
-export function RemoteFileBrowser({ rpc }: RemoteFileBrowserProps): JSX.Element {
+export function RemoteFileBrowser({ rpc, scope }: RemoteFileBrowserProps): JSX.Element {
   const [connections, setConnections] = useState<ConnectionView[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [home, setHome] = useState<string>('/')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [autoRoute, setAutoRoute] = useState<{ connectionId: string; path: string } | null>(null)
+  const lastSessionId = useRef<string | undefined>(undefined)
 
+  // Detect SSH route from session scope
+  useEffect(() => {
+    if (scope === undefined) return
+    const cwd = scope.cwd
+    if (cwd === undefined || cwd === '') return
+    const route = parseRouteFromCwd(cwd)
+    if (route !== null) {
+      setAutoRoute(route)
+      setSelectedId(route.connectionId)
+      lastSessionId.current = scope.sessionId
+    } else if (lastSessionId.current !== undefined && lastSessionId.current !== scope.sessionId) {
+      // Session changed to a non-SSH workspace — reset to connection selector
+      setAutoRoute(null)
+      setSelectedId(null)
+      lastSessionId.current = scope.sessionId
+    }
+  }, [scope?.sessionId, scope?.cwd])
+
+  // Fetch connections list
   useEffect(() => {
     let cancelled = false
     rpc('connections.list').then(result => {
@@ -440,11 +485,12 @@ export function RemoteFileBrowser({ rpc }: RemoteFileBrowserProps): JSX.Element 
       if (result.ok) {
         const list = result.value as ConnectionView[]
         setConnections(list)
-        if (list.length === 1) {
+        // Auto-select the only connection if no route was detected
+        if (list.length === 1 && autoRoute === null) {
           setSelectedId(list[0].id)
         }
       } else {
-        setError(result.error.message)
+        setError(result.error?.message ?? 'Unknown error')
       }
       setLoading(false)
     }).catch(err => {
@@ -453,6 +499,7 @@ export function RemoteFileBrowser({ rpc }: RemoteFileBrowserProps): JSX.Element 
     return () => { cancelled = true }
   }, [rpc])
 
+  // Fetch remote home for the selected connection
   useEffect(() => {
     if (selectedId === null) return
     let cancelled = false
@@ -490,6 +537,11 @@ export function RemoteFileBrowser({ rpc }: RemoteFileBrowserProps): JSX.Element 
         <div style={{ fontSize: 12 }}>Add a remote connection in the workspace picker first</div>
       </div>
     )
+  }
+
+  // Auto-navigate to the session's route
+  if (autoRoute !== null && selectedId === autoRoute.connectionId) {
+    return <RemoteFileTree rpc={rpc} connectionId={autoRoute.connectionId} home={autoRoute.path} />
   }
 
   if (selectedId === null) {
