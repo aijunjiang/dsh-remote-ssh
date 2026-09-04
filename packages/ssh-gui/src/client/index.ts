@@ -133,7 +133,12 @@ export function apply(ctx: Context): void {
   // that browses the remote host over SFTP. Without better-sidebar, the
   // service is undefined and this block is a no-op — remote-ssh's
   // existing connection manager and workspace picker are unaffected.
-  const sidebar = ctx.betterSidebar
+  //
+  // Use ctx.get() instead of ctx.betterSidebar: cordis requires services
+  // accessed via property to be declared in the inject list, and
+  // better-sidebar is an optional peer — ctx.get() returns undefined
+  // when the service is absent instead of throwing.
+  const sidebar = ctx.get('betterSidebar') as Context['betterSidebar']
   if (sidebar !== undefined) {
     ctx.effect(() => {
       const rpc = (endpoint: string, payload?: unknown, signal?: AbortSignal) => {
