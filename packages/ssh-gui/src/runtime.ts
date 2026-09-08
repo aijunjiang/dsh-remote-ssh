@@ -243,17 +243,36 @@ function toConnectConfig(host: ResolvedHost, strict: boolean, knownHosts: readon
   return config
 }
 
-/** Resolve once the client reaches its ready state. */
+/**
+ * Resolve once the client reaches its ready state. The error listener stays
+ * attached FOR THE LIFE OF THE CLIENT (it rejects the first error and no-ops
+ * afterwards): ssh2 can emit a SECOND transport 'error' during teardown of a
+ * failed handshake — the socket's `onDone` path fires "Connection lost before
+ * handshake" on socket close after a first socket error already rejected this
+ * promise — and an 'error' with no listener crashes the host process. The
+ * post-ready transport guard ({@link SshRuntime.guard}) adds its own listener
+ * on top; both no-op once settled.
+ */
 function connectReady(client: Client, config: ConnectConfig): Promise<void> {
   return new Promise<void>((resolve, reject) => {
-    const onReady = (): void => { cleanup(); resolve() }
-    const onError = (error: Error): void => { cleanup(); reject(error) }
-    const cleanup = (): void => {
+    let settled = false
+    const onReady = (): void => {
       client.removeListener('ready', onReady)
-      client.removeListener('error', onError)
+      if (settled) return
+      settled = true
+      resolve()
     }
-    client.once('ready', onReady)
-    client.once('error', onError)
+    const onError = (error: Error): void => {
+      // Keep this listener attached after the first error: the socket can emit
+      // more 'error'/'close' while the client is torn down, and none may be
+      // left unguarded.
+      client.removeListener('ready', onReady)
+      if (settled) return
+      settled = true
+      reject(error)
+    }
+    client.on('ready', onReady)
+    client.on('error', onError)
     client.connect(config)
   })
 }
