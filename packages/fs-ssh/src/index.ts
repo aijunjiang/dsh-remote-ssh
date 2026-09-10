@@ -300,6 +300,34 @@ export class SshFileSystem extends FileSystem {
     return await this.readRaw(target, signal, maxBytes, 'read')
   }
 
+  /**
+   * Read one byte window `[offset, offset + length)` without buffering the
+   * whole file. The helper seeks to `offset` and streams at most `length`
+   * bytes, so the caller's cap on `length` is the guard against unbounded
+   * transfer — exactly the seam's `readByteRange` contract.
+   */
+  override async readByteRange(
+    target: Target,
+    range: { offset: number; length: number },
+    signal?: AbortSignal,
+  ): Promise<Uint8Array> {
+    assertNotAborted(signal, 'readByteRange')
+    if (range.length <= 0) return new Uint8Array(0)
+    const route = this.routeFor(target)
+    const parts: Buffer[] = []
+    try {
+      await route.transport.request(
+        'read',
+        { path: route.path, offset: range.offset, length: range.length },
+        { onData: (chunk) => void parts.push(chunk) },
+      )
+    } catch (error: unknown) {
+      throw mapFsError(error, 'readByteRange', target.displayPath, signal)
+    }
+    assertNotAborted(signal, 'readByteRange')
+    return Buffer.concat(parts)
+  }
+
   /** Chunked text, decoded across chunk boundaries. */
   override async *streamText(target: Target, signal?: AbortSignal): AsyncIterable<string> {
     assertNotAborted(signal, 'streamText')

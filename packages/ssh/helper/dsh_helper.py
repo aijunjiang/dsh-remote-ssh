@@ -229,10 +229,18 @@ def op_read(req):
     `maxBytes`, when present, is an inclusive cap: exceeding it aborts with
     E2BIG rather than truncating, because a truncated read would be
     indistinguishable from a short file.
+
+    `offset` and `length`, when present, read one byte window instead of the
+    whole file: the handle seeks to `offset` and reads at most `length` bytes,
+    returning fewer when the file ends inside the window and none when `offset`
+    lies at or past its end. `offset` is ignored unless `length` is also
+    present; the window path never applies the E2BIG whole-file cap.
     """
     path = req['path']
     request_id = req['id']
     max_bytes = req.get('maxBytes')
+    offset = req.get('offset')
+    length = req.get('length')
     try:
         st = os.stat(path)
     except OSError as error:
@@ -242,12 +250,27 @@ def op_read(req):
                           'not a regular file: %s' % path)
     if max_bytes is not None and st.st_size > max_bytes:
         raise HelperError('E2BIG', 'file exceeds %d bytes: %s' % (max_bytes, path))
+    is_window = offset is not None and length is not None
     total = 0
     try:
         handle = open(path, 'rb')
     except OSError as error:
         raise _os_error(error, path)
     try:
+        if is_window:
+            if offset > 0:
+                handle.seek(offset)
+            if length <= 0:
+                return {'bytes': 0, 'version': _version_token(st)}
+            remaining = length
+            while remaining > 0:
+                chunk = handle.read(min(CHUNK, remaining))
+                if not chunk:
+                    break
+                total += len(chunk)
+                remaining -= len(chunk)
+                _send({'ev': 'data', 'id': request_id, 'b64': _b64(chunk)})
+            return {'bytes': total, 'version': _version_token(st)}
         while True:
             chunk = handle.read(CHUNK)
             if not chunk:
