@@ -8,6 +8,7 @@
 
 import { mkdir, rm } from 'node:fs/promises'
 import { posix } from 'node:path'
+import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { SFTPWrapper, Stats } from 'ssh2'
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
@@ -48,25 +49,29 @@ interface WireListing {
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
-    /** Host connection transport; the shared RPC channel registry lives here. */
+    /** Host connection transport (DSH >= 0.1.5): the auth fence is public. */
     connection: {
-      rpc: {
-        handle(
-          channel: string,
-          handler: (endpoint: string, payload: unknown, signal: AbortSignal) => Promise<ChannelResult>,
-          options: { authority: 'loopback' | 'trusted-host' },
-        ): () => Promise<void>
-      }
+      requestRejection(request: { headers: IncomingMessage['headers'] }): 401 | 403 | undefined
+    }
+    /** Host web server, for registering the `/dsh-ssh` route directly. */
+    webServer: {
+      register(route: {
+        kind: 'prefix' | 'exact'
+        path: string
+        handler: (req: IncomingMessage, res: ServerResponse) => void | Promise<void>
+      }): () => void
     }
   }
 }
 
-/** Required host service: the web transport that carries the RPC channel. */
-export const inject = ['connection']
+/** Required host services: the Connection transport (for its auth fence) and
+ * the web server (for registering the `/dsh-ssh` route directly, since
+ * `connection.rpc.handle` regressed on DSH 0.1.5). */
+export const inject = ['connection', 'webServer']
 
 /** Validated channel config. */
 export const Config: z<WebChannelConfig> = z.object({
-  stateFile: z.string(),
+  stateFile: z.string().default(undefined),
   maxEntries: z.number().min(1).default(1000),
 })
 
@@ -140,6 +145,85 @@ const wireError = (code: string, message: string): ChannelResult => {
   return { ok: false, error: { code: 'internal', message, details: {} } }
 }
 
+/** One valid endpoint path segment. */
+const ENDPOINT_SEGMENT_PATTERN = /^[A-Za-z0-9_$.-]+$/
+
+/** Extract the endpoint from a request pathname under `channel`, or undefined. */
+function endpointFromPath(channel: string, pathname: string): string | undefined {
+  if (!pathname.startsWith(`${channel}/`)) return undefined
+  const endpoint = pathname.slice(channel.length + 1)
+  const segments = endpoint.split('/')
+  if (segments.some(segment => segment === '' || segment === '.' || segment === '..' || !ENDPOINT_SEGMENT_PATTERN.test(segment))) {
+    return undefined
+  }
+  return endpoint
+}
+
+/**
+ * Serve one unary RPC request against `dispatch`, mirroring Connection's
+ * `rpcFetchHandler` (JSON envelope, endpoint/method match, `server-response`
+ * wrap) but writing directly to the node:http response. Used only because
+ * `connection.rpc.handle` regressed on DSH 0.1.5.
+ */
+async function serveRpcChannel(
+  req: IncomingMessage,
+  res: ServerResponse,
+  channel: string,
+  dispatch: (endpoint: string, payload: unknown, signal: AbortSignal) => Promise<ChannelResult>,
+): Promise<void> {
+  const url = new URL(req.url ?? '/', 'http://dsh.internal')
+  const endpoint = endpointFromPath(channel, url.pathname)
+  if (req.method !== 'POST' || endpoint === undefined) {
+    res.writeHead(404)
+    res.end('not found')
+    return
+  }
+  const mediaType = req.headers['content-type']?.split(';', 1)[0]?.trim().toLowerCase()
+  if (mediaType !== 'application/json') {
+    res.writeHead(415)
+    res.end('content type must be application/json')
+    return
+  }
+  let body: unknown
+  try {
+    const chunks: Buffer[] = []
+    for await (const chunk of req) chunks.push(chunk as Buffer)
+    body = JSON.parse(Buffer.concat(chunks).toString('utf8'))
+  } catch {
+    res.writeHead(400)
+    res.end('body is not JSON')
+    return
+  }
+  if (!isRecord(body) || body.type !== 'client-request' || typeof body.rpcId !== 'string' || typeof body.method !== 'string') {
+    res.writeHead(400)
+    res.end(JSON.stringify({
+      type: 'server-response',
+      rpcId: typeof body === 'object' && body !== null && typeof (body as Record<string, unknown>).rpcId === 'string' ? (body as Record<string, unknown>).rpcId : 'invalid-request',
+      result: { ok: false, error: { code: 'gateway/bad-request', message: 'invalid client-request message', details: { issues: [] } } },
+    }))
+    return
+  }
+  if (body.method !== endpoint) {
+    res.writeHead(400)
+    res.end(JSON.stringify({
+      type: 'server-response',
+      rpcId: body.rpcId,
+      result: { ok: false, error: { code: 'gateway/bad-request', message: `method ${JSON.stringify(body.method)} does not match endpoint ${JSON.stringify(endpoint)}`, details: { issues: [] } } },
+    }))
+    return
+  }
+  const abort = new AbortController()
+  res.on('close', () => { if (!res.writableEnded) abort.abort() })
+  let result: ChannelResult
+  try {
+    result = await dispatch(endpoint, body.payload, abort.signal)
+  } catch (error) {
+    result = { ok: false, error: { code: 'internal', message: error instanceof Error ? error.message : String(error), details: {} } }
+  }
+  res.writeHead(200, { 'content-type': 'application/json' })
+  res.end(JSON.stringify({ type: 'server-response', rpcId: body.rpcId, result }))
+}
+
 /** Ancestor chain from the remote root to `target` inclusive. */
 function ancestryCrumbs(target: string): WireEntry[] {
   const crumbs: WireEntry[] = []
@@ -176,15 +260,18 @@ export function apply(ctx: Context, config: WebChannelConfig): void {
    * an agent can learn route → host even while a route is offline.
    */
   const refreshRoutesManifest = (): void => {
-    const reg = registry()
+    // The registry is mounted through `ctx.plugin` and only becomes visible once
+    // its fiber activates, which may not have happened at the scheduled tick. The
+    // manifest is auxiliary (each connection write refreshes it), so skip quietly
+    // instead of failing the boot when the service is not mounted yet.
+    const reg = ctx.get('sshRegistry') as SshRegistry | undefined
+    if (reg === undefined) return
     writeRoutesManifest(
       reg.stateFilePath,
       reg.list() as unknown as RoutesManifestEntry[],
       (message) => void ctx.logger.warn(message),
     )
   }
-  // `ctx.plugin(SshRegistry)` mounts through a fiber, so the service is not
-  // visible synchronously here — schedule the initial manifest for right after.
   setTimeout(() => refreshRoutesManifest(), 0)
 
   /** The remote home directory: the login environment's HOME, else the spec cwd. */
@@ -353,8 +440,26 @@ export function apply(ctx: Context, config: WebChannelConfig): void {
     }
   }
 
-  const dispose = ctx.connection.rpc.handle('/dsh-ssh', dispatch, { authority: 'loopback' })
-  ctx.effect(() => dispose, 'dsh-ssh: /dsh-ssh rpc channel')
+  // DSH 0.1.5 regression workaround: `ctx.connection.rpc.handle` broke when
+  // `dsh-client-connection` dropped `webServer` from its `inject` (commit
+  // 2ef85b1e17). Register the `/dsh-ssh` route directly against the web server
+  // and reuse Connection's public `requestRejection` fence so the channel keeps
+  // the same Host/Origin + browser authentication as before.
+  const CHANNEL = '/dsh-ssh'
+  const route = {
+    kind: 'prefix' as const,
+    path: CHANNEL,
+    handler: async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
+      const rejection = ctx.connection.requestRejection({ headers: req.headers })
+      if (rejection !== undefined) {
+        res.writeHead(rejection)
+        res.end(rejection === 401 ? 'unauthorized' : 'forbidden')
+        return
+      }
+      await serveRpcChannel(req, res, CHANNEL, dispatch)
+    },
+  }
+  ctx.effect(() => ctx.webServer.register(route), 'dsh-ssh: /dsh-ssh rpc channel')
 
   // Agent-facing surface: routing identity in the runtime context, DSH_SSH_*
   // shell environment, and the ssh_exec model tool. Each registration is
