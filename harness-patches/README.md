@@ -5,16 +5,39 @@ These changes belong to the **deployment's DeepSeek Harness fork** (upstream:
 any machine running the same harness baseline can adopt them without copying
 whole files.
 
-- **Baseline harness commit**: `dd6322d604e00eec1ba5e0c8541159906a21094a` (master)
+## Baselines
+
+Patches 1 and 2 were originally cut against DSH 0.1.2-rc.1. **DSH 0.1.5-rc.1
+re-cut** (2026-09-10): only patch 2 is carried forward here; patch 1 is still
+0.1.2-only and must be re-cut before use on 0.1.5 (its three files were
+restructured upstream — `git apply --check` fails).
+
+| Patch | 0.1.2-rc.1 baseline | 0.1.5-rc.1 baseline |
+|---|---|---|
+| `dsh-remote-ssh-job-actions.patch` | `dd6322d6…` (legacy) | **`aa8262ec09…` (current)** ✅ |
+| `dsh-remote-ssh-route-labels.patch` | `dd6322d6…` | ❌ not yet re-cut |
+
 - **Patch 1**: `dsh-remote-ssh-route-labels.patch` — route-aware workspace/session labels for same-named remote directories.
 - **Patch 2**: `dsh-remote-ssh-job-actions.patch` — a real **Stop** button for background jobs in the session header (jobs.kill from the browser).
 
-Apply both with `git apply` (run `--check` first). Then rebuild the affected
-client bundles: `packages/client/ui-workspace`, `packages/api/session-controller`,
-and `packages/client/ui-jobs` (each: run the repo's `tsdown` inside the package),
-then restart `dsh web`.
+Apply with `git apply` (run `--check` first). Then rebuild the affected
+bundles and restart `dsh web`:
+
+```bash
+# 0.1.5: host half + client half
+pnpm run build:lib:host      # compiles packages/api/session-controller
+pnpm run build:lib:client    # compiles packages/client/ui-jobs (and peers)
+```
+
+> 0.1.5 note: patch 2 no longer needs a `/jobstop` slash command on the host —
+> the added `session.jobStop` Remote is enough, and the client still prefers
+> `/jobstop` when the plugin registers it (dsh-remote-ssh does). `jobs.kill`
+> itself is native in 0.1.5 (`packages/jobs/jobs-local`), so the patch only adds
+> the browser trigger.
 
 ---
+
+## Patch 1 (0.1.2-rc.1 only) — route-aware workspace/session labels
 
 ## Patch 1 — route-aware workspace/session labels
 

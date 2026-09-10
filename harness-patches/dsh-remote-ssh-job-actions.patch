@@ -1,8 +1,8 @@
-﻿diff --git a/packages/api/session-controller/src/index.ts b/packages/api/session-controller/src/index.ts
-index 572f895754..b9cb156048 100644
+diff --git a/packages/api/session-controller/src/index.ts b/packages/api/session-controller/src/index.ts
+index b5e92ec6e9..9aeb434973 100644
 --- a/packages/api/session-controller/src/index.ts
 +++ b/packages/api/session-controller/src/index.ts
-@@ -354,6 +354,26 @@ export class SessionController extends TypertRemoteService {
+@@ -378,6 +378,26 @@ export class SessionController extends TypertRemoteService {
      return this.commands.cancel(request)
    }
  
@@ -30,10 +30,10 @@ index 572f895754..b9cb156048 100644
     * Read one cold-safe, message-aligned Session history page.
     * @param request - durable address, backward cursor, and page budget.
 diff --git a/packages/client/ui-jobs/src/client/JobListAction.module.css b/packages/client/ui-jobs/src/client/JobListAction.module.css
-index 2f475bd09c..776f7e6dd1 100644
+index 418ddf9b9a..44dd60cc66 100644
 --- a/packages/client/ui-jobs/src/client/JobListAction.module.css
 +++ b/packages/client/ui-jobs/src/client/JobListAction.module.css
-@@ -123,3 +123,25 @@
+@@ -124,3 +124,25 @@
  .duration {
    font-variant-numeric: tabular-nums;
  }
@@ -116,11 +116,17 @@ index bf15074079..1fc8d46720 100644
                )
              })}
 diff --git a/packages/client/ui-jobs/src/client/index.ts b/packages/client/ui-jobs/src/client/index.ts
-index 22dc2c8425..429940ad4b 100644
+index 22dc2c8425..6b1ae19342 100644
 --- a/packages/client/ui-jobs/src/client/index.ts
 +++ b/packages/client/ui-jobs/src/client/index.ts
-@@ -5,7 +5,8 @@
+@@ -3,9 +3,14 @@
+  * that renders this session's `ctx.jobs` records. The data arrives entirely
+  * through the `jobsBySession` list mirror, so the plugin issues no RPC and
   * holds no state of its own beyond popover visibility.
++ *
++ * dsh-remote-ssh harness patch: the list also carries a per-row Stop for live
++ * jobs, routed through `/jobstop` (plugin-provided command) with a
++ * `session.jobStop` remote fallback.
   */
  import type { Context as ClientContext } from '@deepseek-ai/cordis'
 -import { JobListAction } from './JobListAction.tsx'
@@ -129,7 +135,7 @@ index 22dc2c8425..429940ad4b 100644
  import type {} from '@deepseek-ai/dsh-client-locale/client'
  import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
  import type {} from '@deepseek-ai/dsh-client-ui-session/client'
-@@ -20,8 +21,8 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
+@@ -20,8 +25,8 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
  
  export type { JobListActionProps } from './JobListAction.tsx'
  
@@ -140,22 +146,21 @@ index 22dc2c8425..429940ad4b 100644
  
  /**
   * Client plugin body: register the dictionaries and the header action.
-@@ -29,6 +30,41 @@ export const inject = ['sessions', 'slots', 'locale']
+@@ -29,6 +34,40 @@ export const inject = ['sessions', 'slots', 'locale']
   */
  export function apply(ctx: ClientContext): void {
    ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-job: dictionaries')
 +
 +  /**
-+   * Browser->host stop: the session header list is read-only by itself. The
-+   * dsh-remote-ssh harness patches wire a Stop that first tries the generic
-+   * slash-command channel (`/jobstop`, provided by the plugin host) and falls
-+   * back to the controller's `session.jobStop` remote when that fork exposes
-+   * it. If neither exists the call rejects and the button resets.
++   * Browser->host stop: the session header list is read-only by itself. Try the
++   * generic slash-command channel (`/jobstop`, provided by the plugin host)
++   * first, then fall back to the controller's `session.jobStop` remote. If
++   * neither exists the call rejects and the button resets.
 +   */
 +  const callStop = async (sessionId: string, jobId: string): Promise<unknown> => {
 +    const remote = (ctx as unknown as {
 +      remote?: {
-+        commands?: { execute?(sessionId: string, line: string, images: unknown[]): Promise<unknown> }
++        commands?: { execute?(sessionId: string, line: string, attachments: unknown[]): Promise<unknown> }
 +        session?: { jobStop?(request: { sessionId: string; jobId: string }): Promise<unknown> }
 +      }
 +    }).remote
@@ -182,7 +187,7 @@ index 22dc2c8425..429940ad4b 100644
    ctx.slots.inject(
      'conversation.session.header.actions',
      () => ctx.slots.register({
-@@ -37,6 +73,6 @@ export function apply(ctx: ClientContext): void {
+@@ -37,6 +76,6 @@ export function apply(ctx: ClientContext): void {
        // After the subagent catalog: session lineage reads before process work.
        order: 20,
        locale: NS,
