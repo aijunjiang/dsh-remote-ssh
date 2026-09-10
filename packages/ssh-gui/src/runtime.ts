@@ -317,7 +317,7 @@ export class SshRuntime extends Service {
     })).default([]),
     cwd: z.string().required(),
     readyTimeout: z.number().default(45_000),
-    keepaliveInterval: z.number().default(0),
+    keepaliveInterval: z.number().default(30_000),
     keepaliveCountMax: z.number().default(3),
     strictHostKeyChecking: z.boolean().default(false),
     knownHosts: z.array(z.string()).default([]),

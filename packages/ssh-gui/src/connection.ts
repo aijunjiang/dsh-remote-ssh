@@ -207,7 +207,13 @@ export class SshConnection {
     // Tailscale/DERP-relayed paths routinely exceed 20s to ready (observed
     // 4–20s variance); OpenSSH has no client-side handshake cap at all.
     const readyTimeout = spec.readyTimeout ?? 45_000
-    const keepaliveInterval = spec.keepaliveInterval ?? 0
+    // Keepalive is ON by default (30s): a silently dead peer (server power loss,
+    // network drop, NAT timeout) sends no FIN/RST, so ssh2's 'close'/'error' never
+    // fire and the memoized client/SFTP/PTY would otherwise hang forever until a
+    // DSH restart. With keepalive, ssh2 pings every interval and emits 'error'
+    // ("Keepalive timeout") after keepaliveCountMax+1 misses, which the transport
+    // guard turns into invalidate() → the next use reconnects.
+    const keepaliveInterval = spec.keepaliveInterval ?? 30_000
     const keepaliveCountMax = spec.keepaliveCountMax ?? 3
     const parent: ResolvedHop = {
       host: spec.host,
