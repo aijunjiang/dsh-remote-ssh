@@ -1,8 +1,8 @@
-﻿diff --git a/packages/client/ui-workspace/src/client/tree.ts b/packages/client/ui-workspace/src/client/tree.ts
-index ec921306f9..0a149877c1 100644
+diff --git a/packages/client/ui-workspace/src/client/tree.ts b/packages/client/ui-workspace/src/client/tree.ts
+index 37c6d50e38..e25a3bc034 100644
 --- a/packages/client/ui-workspace/src/client/tree.ts
 +++ b/packages/client/ui-workspace/src/client/tree.ts
-@@ -106,7 +106,9 @@ interface Group {
+@@ -120,7 +120,9 @@ interface Group {
  
  /**
   * Directory display label: basename of the path (both separators accepted).
@@ -14,10 +14,10 @@ index ec921306f9..0a149877c1 100644
   * @returns basename, the raw cwd when it has no basename, or an empty ungrouped marker.
   */
 diff --git a/packages/util/workspace-path/src/index.ts b/packages/util/workspace-path/src/index.ts
-index e2f57276f3..72947705b1 100644
+index 00a1db7732..a07394c547 100644
 --- a/packages/util/workspace-path/src/index.ts
 +++ b/packages/util/workspace-path/src/index.ts
-@@ -38,14 +38,29 @@ export function abbreviateHomePath(path: string, home?: string): string {
+@@ -49,16 +49,31 @@ export function abbreviateHomePath(path: string, home?: string): string {
    return path
  }
  
@@ -48,31 +48,35 @@ index e2f57276f3..72947705b1 100644
 +  if (base === '') return ''
 +  return base + routePlaceholderSuffix(path)
  }
-diff --git a/packages/workspace/workspace/src/index.ts b/packages/workspace/workspace/src/index.ts
-index 87edb28cad..592107ce8e 100644
---- a/packages/workspace/workspace/src/index.ts
-+++ b/packages/workspace/workspace/src/index.ts
-@@ -6,8 +6,10 @@
+ 
+ /**
+diff --git a/packages/workspace/workspace/src/paths.ts b/packages/workspace/workspace/src/paths.ts
+index 9d660471aa..3b7faa0a8f 100644
+--- a/packages/workspace/workspace/src/paths.ts
++++ b/packages/workspace/workspace/src/paths.ts
+@@ -3,8 +3,10 @@
+  * @module @deepseek-ai/dsh-workspace/src/paths
   */
  
- import { randomUUID } from 'node:crypto'
 +import { readFileSync } from 'node:fs'
- import { stat } from 'node:fs/promises'
--import { basename } from 'node:path'
+ import { realpath } from 'node:fs/promises'
+-import { posix, win32 } from 'node:path'
 +import { homedir } from 'node:os'
-+import { basename, join } from 'node:path'
- import { Context, Service } from '@deepseek-ai/cordis'
- import type { SessionHeader, SessionId } from '@deepseek-ai/dsh-session'
- import type {} from '@deepseek-ai/dsh-session-persistence'
-@@ -26,6 +28,40 @@ export { workspaceDomainState, workspaceRecord, workspaceDomainSpec } from './sp
- export type { WorkspaceDomainState, WorkspaceRecord } from './spec.ts'
- export { realpathNormalize } from './paths.ts'
++import { join, posix, win32 } from 'node:path'
+ 
+ /**
+  * Check whether a path names one fixed Host location without process cwd or
+@@ -22,8 +24,36 @@ export function fullyQualifiedWorkspacePath(
+   return win32.isAbsolute(path) && root !== '\\' && root !== '/'
+ }
  
 +/**
 + * Human name for a dsh-remote-ssh route id: the operator's connection label,
 + * else `user@host` — resolved from the plugin's secret-free route manifest
 + * (`<dsh home>/dsh-ssh-routes.json`). Falls back to the raw id when the
 + * manifest is absent or unreadable (e.g. plugin not installed).
++ * @param id - Raw route id from a `dsh-ssh-routes/<id>/…` placeholder path.
++ * @returns The connection label, `user@host`, or the id.
 + */
 +function routeIdHuman(id: string): string {
 +  try {
@@ -90,36 +94,24 @@ index 87edb28cad..592107ce8e 100644
 +  return id
 +}
 +
-+/**
-+ * Default display name for a workspace path: its basename, plus a human route
-+ * hint when the path is a dsh-remote-ssh placeholder
-+ * (`…/dsh-ssh-routes/<id>/<remote path…>`) so same-named directories on
-+ * different remote hosts never share one indistinguishable title.
-+ */
-+function routeAwareBasename(path: string): string {
-+  const name = basename(path)
+ /**
+  * Derive a non-empty default title from a canonical Workspace path.
++ *
++ * A dsh-remote-ssh placeholder path (`<dsh home>/dsh-ssh-routes/<id>/<remote
++ * path…>`) appends a human route hint, so same-named directories on different
++ * remote hosts never share one indistinguishable title.
+  * @param path - Canonical Workspace path.
+  * @param platform - Host platform; injectable for deterministic path tests.
+  * @returns The final segment when present, otherwise the complete root spelling.
+@@ -33,7 +63,10 @@ export function defaultWorkspaceTitle(
+   platform: NodeJS.Platform = process.platform,
+ ): string {
+   const pathApi = platform === 'win32' ? win32 : posix
+-  return pathApi.basename(path) || pathApi.parse(path).root
++  const base = pathApi.basename(path) || pathApi.parse(path).root
++  if (base === '') return base
 +  const route = /(?:^|[\\/])dsh-ssh-routes[\\/]([^\\/]+)[\\/]/.exec(path)
-+  return route === null || name === '' ? name : `${name} · ${routeIdHuman(route[1]!)}`
-+}
-+
- /** Identifies one workspace record (see `src/types.ts` for the brand rationale). */
- export type WorkspaceId = WorkspaceIdBrand
++  return route === null ? base : `${base} · ${routeIdHuman(route[1]!)}`
+ }
  
-@@ -287,7 +323,7 @@ export class WorkspaceRegistry extends Service {
-       if (entity.path === canonical) return entity
-     }
- 
--    const workspaceName = title ?? basename(canonical)
-+    const workspaceName = title ?? routeAwareBasename(canonical)
-     const table = this.requireTable()
-     const state = this.requireState()
-     const id = WorkspaceId(randomUUID())
-@@ -459,7 +495,7 @@ export class WorkspaceRegistry extends Service {
-         const createdAt = new Date(group.newestAt).toISOString()
-         const record: WorkspaceRecord = {
-           path: group.path,
--          title: basename(group.path),
-+          title: routeAwareBasename(group.path),
-           sessionIds,
-           createdAt,
-           updatedAt: createdAt,
+ /**

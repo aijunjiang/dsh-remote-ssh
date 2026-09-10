@@ -29,6 +29,19 @@ index b5e92ec6e9..9aeb434973 100644
    /**
     * Read one cold-safe, message-aligned Session history page.
     * @param request - durable address, backward cursor, and page budget.
+diff --git a/packages/api/session-controller/tests/fake-api.client.ts b/packages/api/session-controller/tests/fake-api.client.ts
+index c86546f630..3a4359bc4e 100644
+--- a/packages/api/session-controller/tests/fake-api.client.ts
++++ b/packages/api/session-controller/tests/fake-api.client.ts
+@@ -232,6 +232,8 @@ export class FakeApiClient {
+         attachment: payload => this.record('session.attachment', payload, this.onAttachment(payload)),
+         updateQueue: payload => this.record('session.updateQueue', payload, this.onUpdateQueue(payload)),
+         cancel: payload => this.record('session.cancel', payload, this.onCancel(payload)),
++        // dsh-remote-ssh harness patch: the header Stop button routes here.
++        jobStop: payload => this.record('session.jobStop', payload, Promise.resolve(ok('requested' as const))),
+         openWorkspacePath: payload => this.record(
+           'session.openWorkspacePath',
+           payload,
 diff --git a/packages/client/ui-jobs/src/client/JobListAction.module.css b/packages/client/ui-jobs/src/client/JobListAction.module.css
 index 418ddf9b9a..44dd60cc66 100644
 --- a/packages/client/ui-jobs/src/client/JobListAction.module.css

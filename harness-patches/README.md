@@ -7,44 +7,47 @@ whole files.
 
 ## Baselines
 
-Patches 1 and 2 were originally cut against DSH 0.1.2-rc.1. **DSH 0.1.5-rc.1
-re-cut** (2026-09-10): only patch 2 is carried forward here; patch 1 is still
-0.1.2-only and must be re-cut before use on 0.1.5 (its three files were
-restructured upstream — `git apply --check` fails).
+Both patches were originally cut against DSH 0.1.2-rc.1 and **re-cut against
+DSH 0.1.5-rc.1** (2026-09-10): every file they touch was restructured
+upstream, so the 0.1.2 cuts no longer apply.
 
 | Patch | 0.1.2-rc.1 baseline | 0.1.5-rc.1 baseline |
 |---|---|---|
 | `dsh-remote-ssh-job-actions.patch` | `dd6322d6…` (legacy) | **`aa8262ec09…` (current)** ✅ |
-| `dsh-remote-ssh-route-labels.patch` | `dd6322d6…` | ❌ not yet re-cut |
+| `dsh-remote-ssh-route-labels.patch` | `dd6322d6…` (legacy) | **`aa8262ec09…` (current)** ✅ |
 
 - **Patch 1**: `dsh-remote-ssh-route-labels.patch` — route-aware workspace/session labels for same-named remote directories.
 - **Patch 2**: `dsh-remote-ssh-job-actions.patch` — a real **Stop** button for background jobs in the session header (jobs.kill from the browser).
 
-Apply with `git apply` (run `--check` first). Then rebuild the affected
-bundles and restart `dsh web`:
+Apply with `git apply` (run `--check` first); the two are independent and can be
+applied together. Then rebuild and restart `dsh web`:
 
 ```bash
-# 0.1.5: host half + client half
-pnpm run build:lib:host      # compiles packages/api/session-controller
-pnpm run build:lib:client    # compiles packages/client/ui-jobs (and peers)
+pnpm run build:lib:host      # workspace, workspace-path, session-controller
+pnpm run build:lib:client    # ui-workspace, ui-jobs (and peers)
 ```
 
-> 0.1.5 note: patch 2 no longer needs a `/jobstop` slash command on the host —
-> the added `session.jobStop` Remote is enough, and the client still prefers
-> `/jobstop` when the plugin registers it (dsh-remote-ssh does). `jobs.kill`
-> itself is native in 0.1.5 (`packages/jobs/jobs-local`), so the patch only adds
-> the browser trigger.
+> **0.1.5 notes.**
+> * Patch 2 no longer needs `/jobstop` on the host — the added `session.jobStop`
+>   Remote suffices; the client still prefers `/jobstop` when the plugin
+>   registers it (dsh-remote-ssh does). `jobs.kill` is native in 0.1.5
+>   (`packages/jobs/jobs-local`), so the patch only adds the browser trigger,
+>   plus the `jobStop` entry the client-side fake API requires.
+> * Patch 1 is smaller than its 0.1.2 cut: 0.1.5 centralizes default titles in
+>   `defaultWorkspaceTitle()` (`workspace/src/paths.ts`), so one function now
+>   covers both the create and re-group call sites that the old cut patched
+>   separately in `workspace/src/index.ts`. `ui-workspace/tree.ts` is a
+>   doc-comment update only (`workspaceLabel` already delegates to
+>   `workspaceTitleOf`).
 
 ---
-
-## Patch 1 (0.1.2-rc.1 only) — route-aware workspace/session labels
 
 ## Patch 1 — route-aware workspace/session labels
 
 | File | Change |
 |---|---|
 | `packages/util/workspace-path/src/index.ts` | new `routePlaceholderSuffix()`; `workspaceTitleOf()` appends ` · <route>` for `…/dsh-ssh-routes/<id>/…` placeholder paths (client fallback labels, session display fallbacks) |
-| `packages/workspace/workspace/src/index.ts` | new `routeIdHuman()` (reads the plugin's secret-free route manifest: label → `user@host` → id) and `routeAwareBasename()`; workspace **default titles** at create/re-group now read e.g. `JunHeAssemblyLine · amax@192.168.10.125` |
+| `packages/workspace/workspace/src/paths.ts` | `defaultWorkspaceTitle()` gains `routeIdHuman()` (reads the plugin's secret-free route manifest: label → `user@host` → id) and a route suffix, so workspace **default titles** at create/re-group read e.g. `JunHeAssemblyLine · amax@192.168.10.125`. 0.1.5 funnels both call sites through this one function (`workspace/src/index.ts` is unpatched). |
 | `packages/client/ui-workspace/src/client/tree.ts` | doc-only; the suffix logic lives in the util so `workspaceLabel` must not duplicate it |
 
 Why server-side default titles: the list shows the durable workspace `title`
