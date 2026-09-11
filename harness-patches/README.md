@@ -56,21 +56,33 @@ fix already-created groups.
 
 ## Apply
 
+> ⚠️ **These patches modify the DeepSeek Harness source tree**, not this plugin.
+> Apply them only to a harness checkout you own, and re-verify them on every DSH
+> upgrade — both patches were already invalidated once by the 0.1.2 → 0.1.5
+> restructure. Nothing in this plugin's SSH capability depends on them: without
+> the patches the plugin works, you just lose the route suffix on workspace
+> titles and the Stop button in the job list.
+
 ```bash
-git -C <harness-checkout> apply --check dsh-remote-ssh-route-labels.patch
-git -C <harness-checkout> apply dsh-remote-ssh-route-labels.patch
+HARNESS=<your harness checkout>
+PATCHES=<this repo>/harness-patches
+
+git -C "$HARNESS" apply --check "$PATCHES/dsh-remote-ssh-route-labels.patch"   # dry-run first
+git -C "$HARNESS" apply --check "$PATCHES/dsh-remote-ssh-job-actions.patch"
+
+git -C "$HARNESS" apply "$PATCHES/dsh-remote-ssh-route-labels.patch"
+git -C "$HARNESS" apply "$PATCHES/dsh-remote-ssh-job-actions.patch"
 ```
 
-## Rebuild the client bundles (built artifacts are gitignored upstream)
+## Rebuild (built artifacts are gitignored upstream)
 
-The patch is source-only. Rebuild the two client bundles that inline the path
-util, then restart the web instance:
+The patches are source-only. Rebuild the affected halves from the harness
+checkout, then restart the web instance:
 
 ```bash
-# from the harness checkout:
-node node_modules/tsdown/dist/run.mjs            # run inside packages/client/ui-workspace
-node node_modules/tsdown/dist/run.mjs            # run inside packages/api/session-controller
-# (or the monorepo's own bundle scripts for those packages)
+cd "$HARNESS"
+pnpm run build:lib:host      # workspace, workspace-path, session-controller
+pnpm run build:lib:client    # ui-workspace, ui-jobs (and peers)
 ```
 
 ## Verify
@@ -93,11 +105,13 @@ stop them from the page). This adds:
 | File | Change |
 |---|---|
 | `packages/api/session-controller/src/index.ts` | new `@Remote('jobStop')` — looks up the owning session and calls `ctx.jobs.kill(jobId, caller, reason)`, so a browser Stop routes to the job's hooks (remote jobs: real process-group kill on the target). |
-| `packages/client/ui-jobs/src/client/index.ts` | the header action is wrapped with a `stopJob` handler calling `session.jobStop`; on an unpatched host the button simply never renders. |
+| `packages/api/session-controller/tests/fake-api.client.ts` | the generated remote namespace now requires a `jobStop` member, so the client-side fake API supplies one (otherwise the client typecheck fails). |
+| `packages/client/ui-jobs/src/client/index.ts` | the header action is wrapped with a `stopJob` handler preferring the plugin's `/jobstop` command and falling back to `session.jobStop`; on an unpatched host the button simply never renders. |
 | `packages/client/ui-jobs/src/client/JobListAction.tsx` | live rows render a **Stop** button (disabled while a stop is pending; i18n `action.stop` / `action.stopping`). |
 | `packages/client/ui-jobs/src/client/locales.ts` | `action.stop` / `action.stopping` in zh + en. |
 | `packages/client/ui-jobs/src/client/JobListAction.module.css` | `.stop` row-button styling. |
 
-Rebuild: `packages/client/ui-jobs` (tsdown), then restart `dsh web`. Stop on a
-finished job is a no-op from the registry (`already-finished`); the row
-settles through the normal jobs mirror.
+Rebuild with the commands above (`build:lib:host` covers session-controller;
+`build:lib:client` covers ui-jobs), then restart `dsh web`. Stop on a finished
+job is a no-op from the registry (`already-finished`); the row settles through
+the normal jobs mirror.

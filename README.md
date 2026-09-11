@@ -72,6 +72,11 @@ Prereqs: DSH (deepseek-harness) and Node ≥ 22 locally; an SSH account on the t
 
 ### A. Official `dsh plugin add` (recommended — zero-flag startup)
 
+> ⚠️ **Do not run `dsh plugin add dsh-remote-ssh`.** That bare name resolves to the public npm
+> registry, where `dsh-remote-ssh` belongs to an unrelated project by a different author
+> (`Yan-Zero/dsh-remote-ssh`) — it is not this plugin and does not carry the fixes or the
+> 0.1.5 baseline below. Always install from **this** repository (git source).
+
 The repository root IS the official bundle package (`dsh.bundle.patch` → the GUI user layer), applied at every boot:
 
 ```bash

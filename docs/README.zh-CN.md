@@ -75,6 +75,10 @@ dsh plugin --profile web add github:aijunjiang/dsh-remote-ssh
 
 ### 方式 A：官方 `dsh plugin add`（推荐，装完启动零参数）
 
+> ⚠️ **不要执行 `dsh plugin add dsh-remote-ssh`。** 这个裸包名会解析到公共 npm registry 上的
+> `dsh-remote-ssh`，那是**另一位作者（`Yan-Zero/dsh-remote-ssh`）的无关项目**，不是本插件，
+> 也不包含下面的修复与 0.1.5 基线。请始终从**本仓库**（git 源）安装。
+
 仓库根就是官方包（`dsh.bundle.patch` 声明了 GUI 用户层），安装后每次启动自动生效：
 
 ```bash
