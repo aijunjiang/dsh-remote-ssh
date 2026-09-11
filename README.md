@@ -62,7 +62,21 @@ Five steps, one flow: add a remote connection, browse the remote host, adopt one
 
 ![5 · routed session with a remote background job](docs/screenshots/05-routed-session-remote-job.png)
 
-> The **host suffix on workspace titles** and the **in-session job indicator / Stop** come with the harness-fork patch — see [`harness-patches/README.md`](harness-patches/README.md) and [Issue #1](https://github.com/aijunjiang/dsh-remote-ssh/issues/1). These screenshots were taken on a patched build.
+> **Two things visible in this screenshot are not part of the plugin — they come
+> from harness patches** that modify the DSH source tree. The plugin works
+> without them (you simply lose the suffix and the Stop button). Both live in
+> [`harness-patches/`](harness-patches/README.md); background in
+> [Issue #1](https://github.com/aijunjiang/dsh-remote-ssh/issues/1).
+
+| In the screenshot | Patch file | What the patch does |
+|---|---|---|
+| The workspace title reads `home · root@…` (the **host suffix**) | [`harness-patches/dsh-remote-ssh-route-labels.patch`](harness-patches/dsh-remote-ssh-route-labels.patch) | Makes workspace/session default titles route-aware, so same-named directories on different remote hosts read `directory-name · <connection label \| user@host>`. Touches `util/workspace-path`, `workspace/workspace`, `client/ui-workspace`. |
+| The **Stop** button in the job list (`1 background job running`) | [`harness-patches/dsh-remote-ssh-job-actions.patch`](harness-patches/dsh-remote-ssh-job-actions.patch) | Adds the browser-to-host stop path: a `session.jobStop` Remote plus a per-row Stop button in `client/ui-jobs`, so a background job can be killed from the session header (for remote jobs: a real process-group kill on the target). Touches `api/session-controller`, `client/ui-jobs`. |
+
+> ⚠️ Patches are applied to a harness checkout with `git apply` and re-verified
+> on every DSH upgrade — they were already invalidated once by the 0.1.2 → 0.1.5
+> restructure. A build without them still routes sessions and runs remote
+> commands; only these two UI affordances are missing.
 
 ---
 
@@ -88,26 +102,29 @@ pnpm dsh web          # no flags needed
 
 > pnpm installs the root package (internal `@deepseek-ai` deps ride the DSH baseline as optional peers; only `ssh2` comes from npm) and auto-registers the bundle in the profile layer. Uninstall: `dsh plugin --profile web remove dsh-remote-ssh`.
 
-#### 首次安装：放行 ssh2 原生构建脚本（pnpm 11）
+#### First install: approve the ssh2 native build script (pnpm 11)
 
-`ssh2`（及 `cpu-features`）含原生模块，pnpm 11 会拦截其构建脚本，首次 `dsh plugin add` 会因
-`ERR_PNPM_IGNORED_BUILDS: Ignored build scripts: cpu-features, ssh2` 而失败——**属正常**。放行后重装：
+`ssh2` (and `cpu-features`) ship native modules, and pnpm 11 blocks their build
+scripts, so the first `dsh plugin add` fails with
+`ERR_PNPM_IGNORED_BUILDS: Ignored build scripts: cpu-features, ssh2` — that is
+expected. Approve, then re-run:
 
 ```bash
-# 1) 在 profile 目录放行构建脚本（pnpm 已在 pnpm-workspace.yaml 里留下占位）
+# 1) approve the build scripts in the profile directory
+#    (pnpm has already written placeholders into pnpm-workspace.yaml)
 cd ~/.dsh/profiles/web
-#    把 pnpm-workspace.yaml 的 allowBuilds 里 cpu-features / ssh2 改成 true：
+#    set these under allowBuilds in pnpm-workspace.yaml:
 #      cpu-features: true
 #      ssh2: true
-pnpm install            # 重新构建 ssh2
+pnpm install            # rebuilds ssh2
 
-# 2) 重跑 add 完成注册
+# 2) re-run add to finish registration
 dsh plugin --profile web add github:aijunjiang/dsh-remote-ssh
 ```
 
-若 `dsh plugin add` 再次报 `ignored build scripts`，直接编辑
-`~/.dsh/profiles/web/pnpm-workspace.yaml`，把 `allowBuilds` 下 `cpu-features` 与 `ssh2` 两行的
-占位值改为 `true` 后 `pnpm install` 即可。
+If `dsh plugin add` reports `ignored build scripts` again, edit
+`~/.dsh/profiles/web/pnpm-workspace.yaml` directly: set `cpu-features` and
+`ssh2` under `allowBuilds` to `true`, then `pnpm install`.
 
 ### B. Local dev install script
 

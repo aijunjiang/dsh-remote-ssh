@@ -62,7 +62,17 @@ dsh plugin --profile web add github:aijunjiang/dsh-remote-ssh
 
 ![5 · 远端路由会话与后台任务](screenshots/05-routed-session-remote-job.png)
 
-> **工作区标题的主机后缀**与会话内的 **job 指示 /「停止」**来自 harness fork 补丁——见 [`harness-patches/README.md`](../harness-patches/README.md) 与 [Issue #1](https://github.com/aijunjiang/dsh-remote-ssh/issues/1)。以上截图拍摄于已打补丁的构建。
+> **这张图里有两处效果不属于本插件，而来自修改 DSH 源码树的 harness 补丁。**
+> 不打补丁插件照常工作（只是少了标题后缀与「停止」按钮）。两个补丁都在
+> [`harness-patches/`](../harness-patches/README.md)，背景见
+> [Issue #1](https://github.com/aijunjiang/dsh-remote-ssh/issues/1)。
+
+| 截图中的效果 | 对应补丁文件 | 补丁作用 |
+|---|---|---|
+| 工作区标题显示 `home · root@…`（**主机后缀**） | [`harness-patches/dsh-remote-ssh-route-labels.patch`](../harness-patches/dsh-remote-ssh-route-labels.patch) | 让工作区 / 会话的默认标题带上路由信息：不同远端主机上的同名目录显示为 `目录名 · <连接 label \| user@host>`，不再混淆。改动 `util/workspace-path`、`workspace/workspace`、`client/ui-workspace`。 |
+| 后台任务列表里的 **「停止」** 按钮（`1 background job running`） | [`harness-patches/dsh-remote-ssh-job-actions.patch`](../harness-patches/dsh-remote-ssh-job-actions.patch) | 打通「浏览器 → 宿主」的停止通路：新增 `session.jobStop` Remote + `client/ui-jobs` 的逐行「停止」按钮，可在会话头部终止后台任务（远端任务即目标机上的进程组 kill）。改动 `api/session-controller`、`client/ui-jobs`。 |
+
+> ⚠️ 补丁用 `git apply` 打进你自己的 harness checkout，且**每次升级 DSH 都要重新验证**——0.1.2 → 0.1.5 的重构已经让它们失效过一次。不打补丁的构建同样能路由会话、跑远端命令，只缺上面这两个 UI 能力。
 
 ---
 
