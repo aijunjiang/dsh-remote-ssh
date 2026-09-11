@@ -8,6 +8,21 @@
 
 本文件面向使用者；设计取舍、契约与审计细节见 [`DESIGN.md`](../DESIGN.md) 与 [`specs/`](../specs/)。配套的 **harness fork 补丁**（同名远端工作区的路由后缀标题）见 [Issue #1](https://github.com/aijunjiang/dsh-remote-ssh/issues/1) 与 [`harness-patches/`](../harness-patches/README.md)。
 
+### 版本兼容
+
+| 插件版本 | 对应 DSH 基线 |
+|---|---|
+| **v0.3.3**（当前） | **0.1.5-rc.1** —— 已实现 `readByteRange`、绕过 `connection.rpc.handle` 回归、默认开启 SSH keepalive、harness 补丁已按 0.1.5 重新适配 |
+| v0.3.0 – v0.3.2 | 0.1.2-rc.1（旧 harness 补丁、keepalive 未启用） |
+
+直接从本仓库安装（git 源），`main` 始终跟随当前基线：
+
+```bash
+dsh plugin --profile web add github:aijunjiang/dsh-remote-ssh
+```
+
+`ssh2` / `cpu-features` 的原生构建脚本需要放行，见下文安装小节。
+
 ---
 
 ## 它能做什么

@@ -6,6 +6,23 @@ Move the workspace's file IO and command execution onto an SSH target — while 
 
 Manage connections and browse remote directories from the web GUI; each session routes to the host its working directory names, and several remote hosts can run side by side. Design notes, contracts, and audits live in [`DESIGN.md`](DESIGN.md) and [`specs/`](specs/). The **harness-fork patch** behind same-named remote workspace titles lives under [`harness-patches/`](harness-patches/README.md) — see [Issue #1](https://github.com/aijunjiang/dsh-remote-ssh/issues/1).
 
+### Compatibility
+
+| Plugin version | DSH baseline |
+|---|---|
+| **v0.3.3** (current) | **0.1.5-rc.1** — `readByteRange` implemented, `connection.rpc.handle` regression worked around, SSH keepalive on by default, harness patches re-cut |
+| v0.3.0 – v0.3.2 | 0.1.2-rc.1 (legacy harness patches, keepalive disabled) |
+
+Install straight from this repository (git source), so `main` always tracks the
+current baseline:
+
+```bash
+dsh plugin --profile web add github:aijunjiang/dsh-remote-ssh
+```
+
+`ssh2`/`cpu-features` need their native build script approved — see
+[Install](#install) below.
+
 ---
 
 ## Feature overview
