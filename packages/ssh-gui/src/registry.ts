@@ -252,8 +252,21 @@ export class SshRegistry extends Service {
     return { connection, path: parsed.path }
   }
 
-  /** Validate, resolve, persist, and register one new connection. */
-  add(input: ConnectionInput): { id: string; view: SshConnectionView } {
+  /**
+   * Validate, resolve, persist, and register one connection.
+   *
+   * **One remote host, one connection.** An entry naming the same
+   * `user@host:port` as an existing one is not duplicated: the existing entry is
+   * returned with `reused: true` instead. Several workspaces (different remote
+   * directories) are meant to share one registry entry so that one SSH
+   * transport — and one remote helper — serves them all; creating a second
+   * entry for the same account used to multiply TCP connections, SFTP channels
+   * and remote helper daemons, which is what exhausted constrained hosts.
+   *
+   * @param input - the operator's connection fields.
+   * @returns the new or reused entry, plus whether it was reused.
+   */
+  add(input: ConnectionInput): { id: string; view: SshConnectionView; reused: boolean } {
     const label = (input.label ?? '').trim() || `${input.username ?? ''}@${input.host}`.replace(/^@/, '')
     const host = input.host.trim()
     const username = (input.username ?? '').trim()
@@ -265,6 +278,12 @@ export class SshRegistry extends Service {
     if (cwd !== '' && !posix.isAbsolute(cwd)) throw new Error(`dsh-ssh: cwd must be an absolute POSIX path: ${cwd}`)
     for (const [index, hop] of (input.jump ?? []).entries()) {
       if (hop.host.trim() === '') throw new Error(`dsh-ssh: jump[${index}].host must be a non-empty string`)
+    }
+    // One remote account = one connection. Reuse before creating so a second
+    // workspace on the same host never spawns a second transport.
+    const existing = this.sameAccount(host, port, username)
+    if (existing !== undefined) {
+      return { id: existing.id, view: this.viewOf(existing), reused: true }
     }
     const id = `c${this.nextId}`
     this.nextId += 1
@@ -289,7 +308,24 @@ export class SshRegistry extends Service {
     if (input.agent !== undefined && input.agent !== '') spec.agent = input.agent
     this.specs.set(id, spec)
     void this.persist()
-    return { id, view: this.viewOf(spec) }
+    return { id, view: this.viewOf(spec), reused: false }
+  }
+
+  /**
+   * The existing entry naming one remote account, if any.
+   *
+   * Identity is `(username, host, port)` — the same SSH login is the same
+   * transport regardless of the operator's display label or jump chain.
+   * @param host - remote host (already trimmed).
+   * @param port - remote port.
+   * @param username - remote account (already trimmed).
+   * @returns the matching spec, or undefined when the account is new.
+   */
+  private sameAccount(host: string, port: number, username: string): SshConnectionSpec | undefined {
+    for (const spec of this.specs.values()) {
+      if (spec.host === host && spec.port === port && spec.username === username) return spec
+    }
+    return undefined
   }
 
   /** Remove one entry and its live connection. Unknown ids are a no-op. */
@@ -304,6 +340,48 @@ export class SshRegistry extends Service {
     }
     void this.persist()
     return true
+  }
+
+  /**
+   * Drop one entry's live transport, keeping the entry itself.
+   *
+   * The registry entry, its workspaces and its sessions are untouched: the next
+   * file read, terminal or `ssh_exec` reconnects lazily. Unknown ids throw so
+   * the caller learns the entry is gone rather than silently doing nothing.
+   *
+   * Caches that outlive one transport notice on their own: dropping the chain
+   * bumps {@link SshConnection.generation}, which `SshHelperSession` compares to
+   * re-bootstrap instead of holding a channel that died with the old transport.
+   * @param id - registry connection id.
+   * @returns whether a live transport was dropped (`false` when already idle).
+   */
+  disconnect(id: string): boolean {
+    if (!this.specs.has(id)) throw new Error(`dsh-ssh: unknown connection id ${JSON.stringify(id)}`)
+    const connection = this.live.get(id)
+    if (connection === undefined) return false
+    return connection.disconnect()
+  }
+
+  /**
+   * Disconnect then eagerly reconnect one entry, reporting reachability.
+   * @param id - registry connection id.
+   * @returns `ok` plus the failure message when the reconnect did not land.
+   */
+  async reconnect(id: string): Promise<{ ok: boolean; message?: string }> {
+    const spec = this.specs.get(id)
+    if (spec === undefined) throw new Error(`dsh-ssh: unknown connection id ${JSON.stringify(id)}`)
+    this.disconnect(id)
+    const connection = this.get(id)
+    if (connection === undefined) throw new Error(`dsh-ssh: unknown connection id ${JSON.stringify(id)}`)
+    try {
+      await connection.getClient()
+      // Warm the SFTP channel too: the sidebar's file tree is the first thing
+      // the operator usually touches, and a half-open transport would fail there.
+      await connection.getSftp()
+      return { ok: true }
+    } catch (error) {
+      return { ok: false, message: error instanceof Error ? error.message : String(error) }
+    }
   }
 
   /** Test one input without persisting: connect, run `true`, and dispose. */
