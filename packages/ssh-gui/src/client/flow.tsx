@@ -120,6 +120,7 @@ function asConnectionView(record: Record<string, unknown>): ConnectionView {
     ...(typeof record.cwd === 'string' ? { cwd: record.cwd } : {}),
     auth: (record.auth === 'password' || record.auth === 'agent' ? record.auth : 'key') as ConnectionView['auth'],
     jumpHosts: Array.isArray(record.jumpHosts) ? record.jumpHosts.map(String) : [],
+    ...(typeof record.workspaceCount === 'number' ? { workspaceCount: record.workspaceCount } : {}),
   }
 }
 
@@ -696,6 +697,22 @@ export function SshWorkspaceFlow(props: FlowProps & FlowInjected) {
                                   跳板 ×{connection.jumpHosts.length}
                                 </span>
                               )}
+                              {typeof connection.workspaceCount === 'number' && (
+                                connection.workspaceCount > 0
+                                  ? (
+                                    <span
+                                      className={styles.badgeUsed}
+                                      title={`${connection.workspaceCount} 个工作区使用这条连接；删除会让它们无法访问远端`}
+                                    >
+                                      {connection.workspaceCount} 工作区
+                                    </span>
+                                  )
+                                  : (
+                                    <span className={styles.badgeIdle} title="没有工作区使用这条连接，可以安全删除">
+                                      未使用
+                                    </span>
+                                  )
+                              )}
                             </span>
                           </span>
                         </button>
@@ -1091,6 +1108,11 @@ export function SshWorkspaceFlow(props: FlowProps & FlowInjected) {
                 <p className={styles.confirmText}>
                   将移除 {deleteTarget.username}@{deleteTarget.host}:{deleteTarget.port} 的注册信息；删除后需要重新添加才能再次连接。
                 </p>
+                {typeof deleteTarget.workspaceCount === 'number' && deleteTarget.workspaceCount > 0 && (
+                  <p className={styles.confirmWarn} role="alert">
+                    ⚠️ 仍有 {deleteTarget.workspaceCount} 个工作区通过这条连接访问远端；删除后它们会失效（工作区记录不会一并删除）。
+                  </p>
+                )}
               </div>
             </div>
             <div className={styles.formActions}>

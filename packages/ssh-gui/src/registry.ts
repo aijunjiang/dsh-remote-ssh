@@ -39,6 +39,13 @@ export interface SshConnectionView {
   cwd?: string
   auth: 'password' | 'key' | 'agent'
   jumpHosts: string[]
+  /**
+   * Workspaces currently routing through this entry.
+   *
+   * Only `connections.list` fills it (deleting a connection is what needs the
+   * number); the per-mutation replies leave it out to stay cheap.
+   */
+  workspaceCount?: number
 }
 
 /** One exact `~/.ssh/config` Host alias as the sidebar lists it. */
@@ -111,6 +118,37 @@ export function parseSshRoute(value: string): { id: string; path: string } | nul
   const path = rest.slice(separator)
   if (!/^[A-Za-z0-9._-]+$/.test(id) || !posix.isAbsolute(path)) return null
   return { id, path }
+}
+
+/**
+ * The registry id a workspace placeholder path names, if it names one.
+ *
+ * Matches the `dsh-ssh-routes/<id>/…` segment anywhere in the path rather than
+ * resolving against a computed root: a record may have been created under a
+ * different `DSH_HOME` than the running process (a copied profile, or a moved
+ * home), and the segment itself is unambiguous. Read-only counting only.
+ * @param value - a workspace directory path.
+ * @returns the connection id, or undefined for a local path.
+ */
+function routeIdOfPlaceholder(value: string): string | undefined {
+  const id = /(?:^|[\\/])dsh-ssh-routes[\\/]([^\\/]+)[\\/]/.exec(value)?.[1]
+  return id !== undefined && /^[A-Za-z0-9._-]+$/.test(id) ? id : undefined
+}
+
+/**
+ * The directory path of one workspace record.
+ *
+ * The registry's consumer type is a facade — `{ id, host, record }` — with the
+ * durable directory on `record.path`. A bare `path` is accepted too, so a later
+ * shape change cannot silently zero every count.
+ * @param workspace - one entry from `ctx.workspaceRegistry.list()`.
+ * @returns the directory path, or undefined when the record carries none.
+ */
+function workspacePathOf(workspace: unknown): string | undefined {
+  if (typeof workspace !== 'object' || workspace === null) return undefined
+  const entry = workspace as { path?: unknown; record?: { path?: unknown } }
+  const path = entry.record?.path ?? entry.path
+  return typeof path === 'string' ? path : undefined
 }
 
 /** Expand `~`/`~/` (or `%d`-free spellings) in an ssh-config file path. */
@@ -221,9 +259,18 @@ export class SshRegistry extends Service {
     this.load()
   }
 
-  /** All registered connections as secret-free views, in insertion order. */
+  /**
+   * All registered connections as secret-free views, in insertion order.
+   *
+   * Each view carries `workspaceCount` so the sidebar can mark which entries
+   * are load-bearing before the operator deletes one.
+   */
   list(): SshConnectionView[] {
-    return [...this.specs.values()].map(spec => this.viewOf(spec))
+    const counts = this.useCounts()
+    return [...this.specs.values()].map(spec => ({
+      ...this.viewOf(spec),
+      workspaceCount: counts.get(spec.id) ?? 0,
+    }))
   }
 
   /** Absolute path of the persisted connection state (for sibling files). */
@@ -241,6 +288,36 @@ export class SshRegistry extends Service {
       this.live.set(id, connection)
     }
     return connection
+  }
+
+  /**
+   * How many workspaces currently route through each connection id.
+   *
+   * A workspace whose directory lives on an SSH route stores the route
+   * placeholder path (`…/dsh-ssh-routes/<id>/<remote path>`); counting those
+   * tells the operator which entries are load-bearing before they delete one.
+   * Sessions that were never adopted into a workspace are not counted — the
+   * registry can only see durable workspace records.
+   *
+   * Read through `ctx.workspaceRegistry` lazily: the seam is optional, so a
+   * deployment without the workspace plugin simply reports zero everywhere
+   * rather than failing.
+   * @returns connection id → number of workspaces routing through it.
+   */
+  useCounts(): Map<string, number> {
+    const counts = new Map<string, number>()
+    const registry = this.ctx.get('workspaceRegistry') as
+      | { list(): readonly unknown[] }
+      | undefined
+    if (registry === undefined) return counts
+    for (const workspace of registry.list()) {
+      const path = workspacePathOf(workspace)
+      if (path === undefined) continue
+      const id = routeIdOfPlaceholder(path)
+      if (id === undefined) continue
+      counts.set(id, (counts.get(id) ?? 0) + 1)
+    }
+    return counts
   }
 
   /** Resolve a `ssh://<id>/<path>` cwd/path into its live connection and remote path. */

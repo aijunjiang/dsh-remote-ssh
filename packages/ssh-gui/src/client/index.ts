@@ -35,6 +35,8 @@ export interface ConnectionView {
   cwd?: string
   auth: 'password' | 'key' | 'agent'
   jumpHosts: string[]
+  /** Workspaces routing through this entry (0 for an unused registration). */
+  workspaceCount?: number
 }
 
 /** One exact `~/.ssh/config` Host alias (the `config.hosts` wire row). */
