@@ -391,6 +391,22 @@ export function apply(ctx: Context, config: WebChannelConfig): void {
           }
           return { ok: true, value: { removed } }
         }
+        case 'connections.disconnect': {
+          const input = requirePayload(payload, isIdPayload, 'connections.disconnect')
+          const id = input.id.trim()
+          const dropped = registry().disconnect(id)
+          // The helper session caches its bootstrap against the old transport;
+          // this router's own generation check re-attaches it, so nothing else
+          // to do here beyond reporting.
+          return { ok: true, value: { dropped } }
+        }
+        case 'connections.reconnect': {
+          const input = requirePayload(payload, isIdPayload, 'connections.reconnect')
+          const outcome = await registry().reconnect(input.id.trim())
+          return outcome.ok
+            ? { ok: true, value: { ok: true } }
+            : wireError('connection-failed', outcome.message ?? 'reconnect failed')
+        }
         case 'connections.test': {
           const input = requirePayload(payload, isConnectionInput, 'connections.test')
           const outcome = await registry().test(input)

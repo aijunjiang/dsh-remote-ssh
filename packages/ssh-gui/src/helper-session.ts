@@ -75,6 +75,8 @@ export class SshHelperSession {
   private loginEnv: Record<string, string> | undefined
   private opened: Promise<void> | undefined
   private disposed = false
+  /** Connection transport generation this session's daemon was started on. */
+  private generation: number | undefined
 
   constructor(connection: SshConnection, options: HelperSessionOptions = {}) {
     this.connection = connection
@@ -158,13 +160,37 @@ export class SshHelperSession {
 
   /**
    * Deploy, start, and verify the helper daemon. Idempotent and cached.
+   *
+   * The cache is keyed to the connection's transport *generation*: a disconnect
+   * (manual, or the guard invalidating a dropped link) bumps it, so this
+   * session bootstraps a fresh daemon instead of holding a channel that died
+   * with the previous transport.
    * @returns the resolved remote facts.
    */
   async open(): Promise<HelperSessionFacts> {
     if (this.disposed) throw new SshTransportError('the helper session is disposed')
+    if (this.opened !== undefined && this.generation !== this.connection.generation) {
+      // The transport was replaced under us: the old helper channel is dead.
+      this.reset()
+    }
     this.opened ??= this.bootstrap()
     await this.opened
     return this.facts!
+  }
+
+  /** Drop cached daemon state so the next `open()` bootstraps again. */
+  private reset(): void {
+    this.opened = undefined
+    this.facts = undefined
+    this.loginEnv = undefined
+    this.client = undefined
+    this.sftp = undefined
+    this.generation = undefined
+    const channel = this.helperChannel
+    this.helperChannel = undefined
+    if (channel !== undefined) {
+      try { channel.close() } catch { /* already gone with the transport */ }
+    }
   }
 
   private async bootstrap(): Promise<void> {
@@ -228,6 +254,9 @@ export class SshHelperSession {
     await this.channel.send('mkdir', { path: runtimeRoot, parents: true, okIfExists: true })
     await this.channel.send('mkdir', { path: this.connection.cwd, parents: true, okIfExists: true })
     this.facts = { home, runtimeRoot, python: ping.python }
+    // Remember which transport this daemon lives on, so a later disconnect
+    // (which bumps the generation) is noticed by open().
+    this.generation = this.connection.generation
   }
 
   /**

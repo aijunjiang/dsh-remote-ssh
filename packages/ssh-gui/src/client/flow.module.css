@@ -886,6 +886,61 @@
   }
 }
 
+/* Disconnect / reconnect sit beside the remove button and follow its
+   hover-reveal rule, so the row stays quiet until the pointer is on it. */
+.connectionAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  flex: none;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--dshssh-fg-subtle);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.connectionItem:hover .connectionAction,
+.connectionAction:focus-visible,
+.connectionItemActive .connectionAction {
+  opacity: 1;
+}
+
+.connectionAction:hover:not(:disabled) {
+  color: var(--dshssh-fg);
+  background: var(--dshssh-bg-hover);
+}
+
+.connectionAction:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+/* Per-connection result of the last disconnect/reconnect. */
+.connectionNote,
+.connectionNoteError {
+  margin: 6px 2px 0;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.connectionNote {
+  color: var(--dshssh-fg-subtle);
+}
+
+.connectionNoteError {
+  color: var(--dshssh-danger-text);
+}
+
+@media (hover: none) {
+  .connectionAction {
+    opacity: 1;
+  }
+}
+
 .skeletonRow {
   display: flex;
   align-items: center;

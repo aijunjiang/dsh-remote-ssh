@@ -187,6 +187,19 @@ export class SshConnection {
   private sftpOpening: Promise<SFTPWrapper> | undefined
   private remoteEnvironment: Promise<Record<string, string>> | undefined
   private disposed = false
+  private generationCounter = 0
+
+  /**
+   * Monotonic transport generation: bumped whenever the live chain is dropped
+   * (manual disconnect, or the guard invalidating a lost link).
+   *
+   * Caches that outlive one transport — most importantly `SshHelperSession`,
+   * whose bootstrap is otherwise cached forever — compare this to notice their
+   * channel died with the previous generation and re-attach.
+   */
+  get generation(): number {
+    return this.generationCounter
+  }
 
   /** The transport's default remote working directory. */
   get cwd(): string {
@@ -242,6 +255,23 @@ export class SshConnection {
       if (jump.agent !== undefined) hop.agent = jump.agent
       return hop
     }), parent]
+  }
+
+  /**
+   * Drop the live transport while keeping this entry usable.
+   *
+   * Unlike {@link dispose} (permanent), this only releases the current chain,
+   * SFTP channel and cached environment, so the next use reconnects. It backs
+   * the sidebar's "Disconnect" action: the registry entry, its workspaces and
+   * its sessions all stay; a live terminal ends with the transport, and the
+   * next file/tool use rebuilds the connection.
+   * @returns whether a live transport was actually dropped.
+   */
+  disconnect(): boolean {
+    if (this.disposed) return false
+    const hadLive = this.clients.length > 0 || this.ready !== undefined || this.sftp !== undefined
+    this.invalidate()
+    return hadLive
   }
 
   /** Release the chain and the shared SFTP channel. */
@@ -444,6 +474,7 @@ export class SshConnection {
 
   /** Drop the live chain after a transport failure so the next use reconnects. */
   private invalidate(): void {
+    this.generationCounter += 1
     this.ready = undefined
     this.sftp = undefined
     this.sftpOpening = undefined

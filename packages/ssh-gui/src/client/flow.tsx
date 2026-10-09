@@ -215,6 +215,10 @@ export function SshWorkspaceFlow(props: FlowProps & FlowInjected) {
   const [nativePicking, setNativePicking] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<ConnectionView | null>(null)
   const [removingId, setRemovingId] = useState<string | null>(null)
+  /** Connection id with a disconnect/reconnect in flight (buttons spin + disable). */
+  const [linkBusyId, setLinkBusyId] = useState<string | null>(null)
+  /** Per-connection feedback for the disconnect/reconnect actions. */
+  const [linkNote, setLinkNote] = useState<{ id: string; kind: 'ok' | 'error'; text: string } | null>(null)
 
   const generation = useRef(0)
   const activeRequest = useRef<AbortController | null>(null)
@@ -505,6 +509,51 @@ export function SshWorkspaceFlow(props: FlowProps & FlowInjected) {
     }
   }
 
+  /**
+   * Drop one connection's live transport.
+   *
+   * The registry entry, its workspaces and its sessions all stay: the next file
+   * read, terminal or `ssh_exec` reconnects lazily. Useful to free a host that
+   * is at its session limit, or to let a terminal on a wedged link be replaced.
+   */
+  const disconnectConnection = async (id: string): Promise<void> => {
+    if (linkBusyId !== null) return
+    setLinkBusyId(id)
+    setLinkNote(null)
+    try {
+      const value = unwrap(await rpc('connections.disconnect', { id }), 'connections.disconnect failed')
+      const dropped = isRecord(value) && value.dropped === true
+      setLinkNote({
+        id,
+        kind: 'ok',
+        text: dropped ? '已断开；下次使用会自动重连' : '当前没有活动连接',
+      })
+    } catch (error) {
+      setLinkNote({ id, kind: 'error', text: error instanceof Error ? error.message : String(error) })
+    } finally {
+      setLinkBusyId(null)
+    }
+  }
+
+  /** Disconnect then eagerly reconnect one connection, reporting reachability. */
+  const reconnectConnection = async (id: string): Promise<void> => {
+    if (linkBusyId !== null) return
+    setLinkBusyId(id)
+    setLinkNote(null)
+    try {
+      const result = await rpc('connections.reconnect', { id })
+      if (result.ok) {
+        setLinkNote({ id, kind: 'ok', text: '已重连' })
+      } else {
+        setLinkNote({ id, kind: 'error', text: result.error.message })
+      }
+    } catch (error) {
+      setLinkNote({ id, kind: 'error', text: error instanceof Error ? error.message : String(error) })
+    } finally {
+      setLinkBusyId(null)
+    }
+  }
+
   const formResolve = async (host: string): Promise<ResolvedSshConfigView> =>
     unwrap(await rpc('connections.resolve', { host }), 'connections.resolve failed')
 
@@ -652,6 +701,28 @@ export function SshWorkspaceFlow(props: FlowProps & FlowInjected) {
                         </button>
                         <button
                           type="button"
+                          className={styles.connectionAction}
+                          aria-label={`断开连接 ${connection.label}`}
+                          title="断开（保留连接与工作区，下次使用自动重连）"
+                          disabled={linkBusyId !== null}
+                          onClick={() => { void disconnectConnection(connection.id) }}
+                        >
+                          <CloseIcon style={{ width: 14, height: 14 }} />
+                        </button>
+                        <button
+                          type="button"
+                          className={styles.connectionAction}
+                          aria-label={`重连 ${connection.label}`}
+                          title="重连（断开后立即重新建立，并验证可达）"
+                          disabled={linkBusyId !== null}
+                          onClick={() => { void reconnectConnection(connection.id) }}
+                        >
+                          {linkBusyId === connection.id
+                            ? <SpinnerIcon style={{ width: 14, height: 14 }} />
+                            : <RefreshIcon style={{ width: 14, height: 14 }} />}
+                        </button>
+                        <button
+                          type="button"
                           className={styles.connectionRemove}
                           aria-label={`删除连接 ${connection.label}`}
                           title="删除连接"
@@ -663,6 +734,14 @@ export function SshWorkspaceFlow(props: FlowProps & FlowInjected) {
                     )
                   })}
                 </ul>
+              )}
+              {linkNote !== null && (
+                <p
+                  className={linkNote.kind === 'ok' ? styles.connectionNote : styles.connectionNoteError}
+                  role="status"
+                >
+                  {linkNote.text}
+                </p>
               )}
             </section>
 
