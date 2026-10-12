@@ -223,6 +223,26 @@ export function ConnectionForm({ resolve, test, save, draft, onClose, onSaved }:
   }
 
   /**
+   * Edit the username, keeping an auto-filled directory in step with it.
+   *
+   * The field pre-fills `cwd` with `/home/<user>` (here and in
+   * {@link applyResolved}), which is a guess: when the operator then retypes the
+   * account, the old guess becomes a path that account cannot create. The
+   * remote helper used to fail outright on that (`mkdir` EACCES on another
+   * user's home), so keep the pair consistent — but only while the directory is
+   * still exactly the guess for the *previous* name, never over a hand-typed
+   * path.
+   * @param next - the username now in the field.
+   */
+  const changeUsername = (next: string): void => {
+    const previousGuess = username.trim() === '' ? '' : `/home/${username.trim()}`
+    setUsername(next)
+    if (previousGuess !== '' && cwd === previousGuess && next.trim() !== '') {
+      setCwd(`/home/${next.trim()}`)
+    }
+  }
+
+  /**
    * Silent alias resolution for blur/paste: no validation reveal, no error
    * surface, never disables the form. Guarded by its own generation counter
    * so a stale answer cannot clobber a newer edit.
@@ -397,7 +417,7 @@ export function ConnectionForm({ resolve, test, save, draft, onClose, onSaved }:
                 className={cx(styles.input, usernameError !== undefined && styles.inputError)}
                 value={username}
                 disabled={busy}
-                onChange={event => { setUsername(event.target.value) }}
+                onChange={event => { changeUsername(event.target.value) }}
               />
               {usernameError !== undefined && <span className={styles.fieldError}>{usernameError}</span>}
             </label>

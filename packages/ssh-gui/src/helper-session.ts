@@ -252,11 +252,40 @@ export class SshHelperSession {
     const home = env.home
     const runtimeRoot = posix.join(home, this.options.helperDir, 'run')
     await this.channel.send('mkdir', { path: runtimeRoot, parents: true, okIfExists: true })
-    await this.channel.send('mkdir', { path: this.connection.cwd, parents: true, okIfExists: true })
+    // The connection's `cwd` is only a convenience default for callers that
+    // give no directory of their own — never a precondition for the transport.
+    // It used to be created unconditionally, so one stale value (the form fills
+    // `/home/<user>` and does not update it when the username changes) made
+    // every command on the connection fail with EACCES before anything ran.
+    await this.ensureDefaultCwd()
     this.facts = { home, runtimeRoot, python: ping.python }
     // Remember which transport this daemon lives on, so a later disconnect
     // (which bumps the generation) is noticed by open().
     this.generation = this.connection.generation
+  }
+
+  /**
+   * Create the connection's default remote directory if it is missing.
+   *
+   * Best-effort by design. The value is only a fallback for callers that name
+   * no directory, so a path this account cannot create must not fail the
+   * bootstrap: before this guard, one stale `cwd` (a username edited after the
+   * form pre-filled `/home/<old-user>`) made every command on the connection
+   * fail before it ran. A failure is logged and the connection still works for
+   * every caller that supplies its own absolute directory.
+   */
+  private async ensureDefaultCwd(): Promise<void> {
+    const cwd = this.connection.cwd
+    try {
+      await this.channel.send('mkdir', { path: cwd, parents: true, okIfExists: true })
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error)
+      this.connection.warn(
+        `dsh-ssh: cannot create the default remote directory ${JSON.stringify(cwd)} (${reason}); `
+        + 'commands that name their own directory still work. Clear or fix this connection\'s '
+        + '"cwd" if no-directory callers should work too.',
+      )
+    }
   }
 
   /**
