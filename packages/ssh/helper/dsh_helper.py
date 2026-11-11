@@ -39,6 +39,10 @@ import signal
 import stat as statmod
 import subprocess
 import sys
+import fcntl
+import pty as ptymod
+import struct
+import termios
 import threading
 import traceback
 import uuid
@@ -468,6 +472,26 @@ class Child(object):
         self.spill = spill
 
 
+class PtySession(object):
+    """One pseudo-terminal on the target: a child on the slave side, its master relayed.
+
+    A terminal is not a pipe. `isatty()` on the child's stdio, `tcgetpgrp()` for
+    the foreground group, and `TIOCSWINSZ` for resize all require a real PTY pair,
+    which is why this lives beside (not inside) the ordinary spawn path.
+    """
+
+    def __init__(self, handle, popen, master_fd):
+        self.handle = handle
+        self.popen = popen
+        self.master_fd = master_fd
+        # start_new_session=True makes the child a session AND group leader, and
+        # the slave becomes its controlling terminal, so its pgid equals its pid.
+        self.pid = popen.pid
+        self.pgid = popen.pid
+        self.closed = False
+        self.lock = threading.Lock()
+
+
 class Spill(object):
     """A bounded full-stream record written on the target.
 
@@ -730,6 +754,256 @@ def op_ping(req):
 # dispatch
 # ---------------------------------------------------------------------------
 
+# ── Pseudo-terminal operations ────────────────────────────────────────────
+# A terminal needs a real PTY pair on the target: `isatty()` on the child's
+# stdio, `tcgetpgrp()` for the foreground group, `TIOCSWINSZ` for resize and
+# `/proc/<pid>/wchan` for the input-wait fact. None of that can be imitated
+# over pipes, which is why PTYs get their own op family instead of reusing
+# `spawn` with a flag.
+
+_ptys = {}
+_ptys_lock = threading.Lock()
+
+
+def _pty(handle):
+    with _ptys_lock:
+        session = _ptys.get(handle)
+    if session is None:
+        raise HelperError('ENOENT', 'no such terminal handle: %s' % handle)
+    return session
+
+
+def op_pty_spawn(req):
+    """Start one child on a fresh PTY in its own session, with an explicit environment."""
+    argv = req['argv']
+    if not argv:
+        raise HelperError('EINVAL', 'argv must not be empty')
+    cwd = req['cwd']
+    env = req.get('env') or {}
+    handle = req['handle']
+    rows = int(req.get('rows') or 24)
+    cols = int(req.get('cols') or 80)
+    term = req.get('term') or 'xterm-256color'
+
+    if not os.path.isdir(cwd):
+        raise HelperError('ENOTDIR', 'cwd is not a directory: %s' % cwd)
+
+    env = dict(env)
+    env['TERM'] = term
+
+    master_fd, slave_fd = ptymod.openpty()
+    try:
+        _set_winsize(slave_fd, rows, cols)
+        popen = subprocess.Popen(
+            argv,
+            cwd=cwd,
+            env=env,
+            stdin=slave_fd,
+            stdout=slave_fd,
+            stderr=slave_fd,
+            start_new_session=True,
+            close_fds=True,
+            preexec_fn=_make_controlling_terminal,
+        )
+    except OSError as error:
+        os.close(master_fd)
+        try:
+            os.close(slave_fd)
+        except OSError:
+            pass
+        raise _os_error(error, argv[0])
+    # The parent never touches the slave again; the child holds it open.
+    try:
+        os.close(slave_fd)
+    except OSError:
+        pass
+
+    session = PtySession(handle, popen, master_fd)
+    with _ptys_lock:
+        _ptys[handle] = session
+    with _children_lock:
+        _children[handle] = session
+
+    reader = threading.Thread(target=_pty_relay, args=(session,))
+    reader.daemon = True
+    reader.start()
+    reaper = threading.Thread(target=_pty_reap, args=(session,))
+    reaper.daemon = True
+    reaper.start()
+
+    return {'pid': session.pid, 'pgid': session.pgid, 'pty': True}
+
+
+def _make_controlling_terminal():
+    """Make the inherited slave FD this child's controlling terminal.
+
+    `Popen` gives the child the slave on fds 0/1/2; this runs in the child after
+    `fork` (and after `setsid`, thanks to `start_new_session`), so it can claim
+    the terminal before `exec`. Failures are swallowed: a PTY that could not
+    become controlling still yields a usable (if not job-controlled) shell,
+    which beats refusing to start one.
+    """
+    try:
+        fcntl.ioctl(0, termios.TIOCSCTTY, 0)
+    except (OSError, IOError):
+        pass
+
+
+def _set_winsize(fd, rows, cols):
+    """Apply one window size to a terminal FD (`struct winsize` order: rows, cols, xpix, ypix)."""
+    packed = struct.pack('HHHH', max(2, rows), max(2, cols), 0, 0)
+    fcntl.ioctl(fd, termios.TIOCSWINSZ, packed)
+
+
+def _pty_relay(session):
+    """Forward the master side to the control channel until the terminal closes."""
+    try:
+        while True:
+            try:
+                chunk = os.read(session.master_fd, CHUNK)
+            except OSError as error:
+                if error.errno in (errno.EIO, errno.EBADF):
+                    break
+                raise
+            if not chunk:
+                break
+            _send({'ev': 'data', 'h': session.handle, 's': 'out', 'b64': _b64(chunk)})
+    except Exception as error:  # noqa: BLE001 - a closed master is normal
+        _log('debug', 'pty relay %s ended: %s' % (session.handle, error))
+    finally:
+        _pty_close_fd(session)
+        _send({'ev': 'eof', 'h': session.handle, 's': 'out'})
+
+
+def _pty_close_fd(session):
+    with session.lock:
+        if session.closed:
+            return
+        session.closed = True
+        try:
+            os.close(session.master_fd)
+        except OSError:
+            pass
+
+
+def _pty_reap(session):
+    """Wait for the terminal's top-level process and report the exit."""
+    try:
+        code = session.popen.wait()
+    except Exception:  # noqa: BLE001
+        code = None
+    finally:
+        _pty_close_fd(session)
+        with _ptys_lock:
+            _ptys.pop(session.handle, None)
+        with _children_lock:
+            _children.pop(session.handle, None)
+    _send({'ev': 'exit', 'h': session.handle, 'code': code})
+
+
+def op_pty_write(req):
+    """Deliver input bytes to the terminal master."""
+    session = _pty(req['handle'])
+    data = _unb64(req.get('b64') or '')
+    with session.lock:
+        if session.closed:
+            raise HelperError('EPIPE', 'terminal is closed')
+        try:
+            os.write(session.master_fd, data)
+        except OSError as error:
+            raise _os_error(error, 'pty')
+    return {'ok': True}
+
+
+def op_pty_resize(req):
+    """Change the terminal window size and notify its foreground application."""
+    session = _pty(req['handle'])
+    rows = int(req['rows'])
+    cols = int(req['cols'])
+    if rows < 1 or cols < 1:
+        raise HelperError('EINVAL', 'rows and cols must be positive')
+    with session.lock:
+        if session.closed:
+            raise HelperError('EPIPE', 'terminal is closed')
+        try:
+            _set_winsize(session.master_fd, rows, cols)
+        except OSError as error:
+            raise _os_error(error, 'pty')
+    return {'ok': True}
+
+
+def op_pty_foreground(req):
+    """Report the terminal's current foreground process group and whether it waits on input."""
+    session = _pty(req['handle'])
+    try:
+        pgid = os.tcgetpgrp(session.master_fd)
+    except OSError:
+        # No controlling group yet (or the terminal is gone): the contract's
+        # undefined answer, not an error.
+        return {'foreground': None}
+    return {'foreground': {'pgid': pgid, 'inputWaiting': _input_waiting(pgid)}}
+
+
+def _input_waiting(pgid):
+    """Whether one process group is blocked reading its terminal.
+
+    Linux exposes the wait channel in `/proc/<pid>/wchan`; a foreground shell or
+    pager parked in `n_tty_read` (or the poll/select family) is waiting on input.
+    Other platforms, and any read failure, answer False — an unprovable fact must
+    not be reported as proven.
+    """
+    try:
+        pids = os.listdir('/proc')
+    except OSError:
+        return False
+    for entry in pids:
+        if not entry.isdigit():
+            continue
+        try:
+            if os.getpgid(int(entry)) != pgid:
+                continue
+            with open('/proc/%s/wchan' % entry, 'r') as handle:
+                wchan = handle.read().strip()
+        except (OSError, IOError, ValueError):
+            continue
+        if wchan in ('n_tty_read', 'wait_woken', 'do_select', 'poll_schedule_timeout'):
+            return True
+    return False
+
+
+def op_pty_activity(req):
+    """Observe whether the foreground group is busy, using the same evidence as `foreground`."""
+    session = _pty(req['handle'])
+    try:
+        pgid = os.tcgetpgrp(session.master_fd)
+    except OSError:
+        return {'state': 'unknown'}
+    if pgid <= 0:
+        return {'state': 'unknown'}
+    waiting = _input_waiting(pgid)
+    return {'state': 'idle' if waiting else 'busy'}
+
+
+def op_pty_kill(req):
+    """Terminate the terminal's whole process group, then let the reaper report the exit."""
+    session = _pty(req['handle'])
+    sig = int(req.get('signal') or int(signal.SIGHUP))
+    delivered = 0
+    try:
+        os.killpg(session.pgid, sig)
+        delivered = session.pgid
+    except OSError:
+        pass
+    if req.get('hard'):
+        # Grace elapsed on the client side: escalate so nothing survives.
+        try:
+            os.killpg(session.pgid, signal.SIGKILL)
+        except OSError:
+            pass
+        _pty_close_fd(session)
+    return {'delivered': delivered}
+
+
 OPS = {
     'ping': op_ping,
     'stat': op_stat,
@@ -746,6 +1020,12 @@ OPS = {
     'stdin': op_stdin,
     'kill': op_kill,
     'alive': op_alive,
+    'pty_spawn': op_pty_spawn,
+    'pty_write': op_pty_write,
+    'pty_resize': op_pty_resize,
+    'pty_foreground': op_pty_foreground,
+    'pty_activity': op_pty_activity,
+    'pty_kill': op_pty_kill,
 }
 
 # Operations that must not be queued behind a slow peer: each runs on its own
