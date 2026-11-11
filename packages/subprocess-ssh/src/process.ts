@@ -23,14 +23,22 @@
  */
 
 import { Buffer } from 'node:buffer'
-import { Writable } from 'node:stream'
+import { Readable, Writable } from 'node:stream'
 import { OutputCollector } from './output.ts'
 import type { CollectLimits, OutputRead } from './output.ts'
 
 /** Exit facts, mirroring the seam's `SubprocessOutcome`. */
 export interface ProcessOutcome {
   exitCode: number | null
-  signal: string | null
+  /**
+   * Terminating signal name, or null on a normal exit.
+   *
+   * Typed as `NodeJS.Signals` because that is what `SubprocessOutcome` reports;
+   * the helper answers with a number, and `signalName` maps it. A signal number
+   * outside Node's table still lands here as `SIG<n>`, which is the honest
+   * spelling rather than a silent null.
+   */
+  signal: NodeJS.Signals | null
 }
 
 /** Per-stream disposition this handle understands. */
@@ -87,8 +95,8 @@ const SIGNAL_NAMES: Record<number, string> = {
 }
 
 /** Map a numeric signal to its name, keeping the number when unknown. */
-export function signalName(signal: number): string {
-  return SIGNAL_NAMES[signal] ?? `SIG${signal}`
+export function signalName(signal: number): NodeJS.Signals {
+  return (SIGNAL_NAMES[signal] ?? `SIG${signal}`) as NodeJS.Signals
 }
 
 /** Offset-based reader over one collected stream. */
@@ -106,6 +114,20 @@ export interface OutputReader {
  */
 export class RemoteProcessHandle {
   readonly stdin: Writable | undefined
+  /**
+   * Raw stdout, present only for a `'pipe'` request.
+   *
+   * The seam asks for a live stream here; over SSH the helper relays labelled
+   * chunks rather than an OS pipe, so this Readable is fed from those events.
+   * A `collect` request reports through {@link collected} instead and leaves
+   * this undefined, which is exactly what the contract means by "present iff
+   * spawned with `stdout: 'pipe'`".
+   */
+  readonly stdout: Readable | undefined
+  /** Raw stderr; the mirror of {@link stdout}. */
+  readonly stderr: Readable | undefined
+  /** No separate duplex channel exists over the helper protocol. */
+  readonly control: undefined = undefined
   readonly collected: { stdout?: OutputReader; stderr?: OutputReader }
   readonly done: Promise<ProcessOutcome>
   /** Resolves with the tree's identity once the helper has spawned it. */
@@ -158,6 +180,10 @@ export class RemoteProcessHandle {
       if (typeof mode === 'object') this.collectors.set(stream, new OutputCollector(mode))
     }
     this.collected = {}
+    // A `'pipe'` request gets a live stream fed by the relayed chunk events; any
+    // other mode reports through `collected` and leaves these undefined.
+    this.stdout = request.stdout === 'pipe' ? new Readable({ read() {} }) : undefined
+    this.stderr = request.stderr === 'pipe' ? new Readable({ read() {} }) : undefined
     const out = this.collectors.get('out')
     const err = this.collectors.get('err')
     if (out !== undefined) this.collected.stdout = out
@@ -168,7 +194,7 @@ export class RemoteProcessHandle {
     // recovered.
     this.registration = host.registerProcess({
       onData: (stream, chunk) => this.onData(stream, chunk),
-      onEof: () => {},
+      onEof: (stream) => this.onEof(stream),
       onExit: (exitCode, signal) => this.onExit(exitCode, signal),
       onGone: () => this.onGone(),
       // The helper deleted the file; every reader must stop advertising it, or
@@ -318,9 +344,27 @@ export class RemoteProcessHandle {
 
   private onData(stream: 'out' | 'err', chunk: Buffer): void {
     this.collectors.get(stream)?.append(chunk)
+    // A `'pipe'` consumer reads the raw stream; a `collect` consumer reads the
+    // collector above. Neither path interferes with the other.
+    const target = stream === 'out' ? this.stdout : this.stderr
+    if (target !== undefined) target.push(chunk)
+  }
+
+  /** End the raw streams once the helper reports the label's EOF. */
+  private onEof(stream: 'out' | 'err'): void {
+    const target = stream === 'out' ? this.stdout : this.stderr
+    if (target !== undefined && !target.readableEnded) target.push(null)
+  }
+
+  /** Finish both raw streams; a caller that ends on `done` is never left hanging. */
+  private endStreams(): void {
+    for (const target of [this.stdout, this.stderr]) {
+      if (target !== undefined && !target.readableEnded) target.push(null)
+    }
   }
 
   private onExit(exitCode: number | null, signal: number | null): void {
+    this.endStreams()
     // A fast process can send `gone` (from the quiescence poll) before `exit`;
     // the default outcome that `markGone` may have settled must then be
     // overwritten with the REAL exit facts.

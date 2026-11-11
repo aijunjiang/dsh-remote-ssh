@@ -116,8 +116,22 @@ export class SshSubprocessRuntime extends SubprocessRuntime {
     this.live.clear()
   }
 
+  /** The connection owner; needed where the ssh2 client itself is the answer. */
   private get connection(): SshConnection {
     return (this.ctx as unknown as { ssh: SshConnection }).ssh
+  }
+
+  /**
+   * The default helper transport.
+   *
+   * Read through the router rather than from `ctx.ssh` directly: a connection
+   * owns the ssh2 client and the SFTP channel, while a TRANSPORT is the helper
+   * session on top of it (`request`/`send`/`registerProcess`/`runtimePath`).
+   * They are different faces of the same target, and only the transport can
+   * serve the environment and ripgrep probes below.
+   */
+  private get defaultTransport(): HelperTransport {
+    return this.router.resolveCwd(undefined).transport
   }
 
   /**
@@ -143,7 +157,7 @@ export class SshSubprocessRuntime extends SubprocessRuntime {
 
   /** The default transport's login environment (for `resolveExecutable`). */
   private async remoteEnv(): Promise<Record<string, string>> {
-    return await this.remoteEnvFor(this.connection)
+    return await this.remoteEnvFor(this.defaultTransport)
   }
 
   /** Ripgrep on one transport's target, resolved once per connection. */
@@ -151,7 +165,13 @@ export class SshSubprocessRuntime extends SubprocessRuntime {
     let cached = this.ripgrep.get(transport)
     if (cached === undefined) {
       cached = resolveRemoteRipgrep({
-        exec: (command) => transport.exec(command),
+        // The helper's `exec` reports a NULL exit code for a signalled command;
+        // the ripgrep probe only asks "did this exit 0", so a null becomes a
+        // definite miss rather than a shape mismatch at the call site.
+        exec: async (command) => {
+          const result = await transport.exec(command)
+          return { ...result, exitCode: result.exitCode ?? -1 }
+        },
         ...(this.config.ripgrepPath === undefined ? {} : { configuredPath: this.config.ripgrepPath }),
         stagedPath: transport.runtimePath('bin', 'rg'),
       }).then((resolved) => resolved?.path)
@@ -162,7 +182,7 @@ export class SshSubprocessRuntime extends SubprocessRuntime {
 
   /** The default transport's ripgrep (for `resolveExecutable`). */
   private async remoteRipgrep(): Promise<string | undefined> {
-    return await this.remoteRipgrepFor(this.connection)
+    return await this.remoteRipgrepFor(this.defaultTransport)
   }
 
   /**
