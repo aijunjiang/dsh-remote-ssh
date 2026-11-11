@@ -4,6 +4,44 @@ Notable changes to `dsh-remote-ssh`. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.4.1] — 2026-11-11
+
+### Fixed
+
+- **Background jobs work on DSH 0.2.x again.** `ssh_exec` passed the whole
+  *agent object* as `JobSpec.owner`, but 0.2.x resolves `owner` as a **session
+  id** against its live-agent registry. Every registration therefore failed
+  with ``session "[object Object]" has no live agent (background job owner must
+  be live)`` — and because explicit daemonization (`setsid` / `nohup` /
+  `disown`) auto-registers, *every* detaching spelling was blocked, leaving
+  only foreground calls. The owner is now the session id string.
+- **The job log is no longer empty.** `JobSpec.output` was never supplied, so
+  `job_output` and the header log read an empty ring even though the job was
+  producing output. The remote job hooks now publish a live pull source that
+  fans out the same bytes the completion-notice tail keeps, and the creating
+  tool call is recorded (`JobSpec.toolCall`).
+- **A refused registration is reported, not hidden.** The registry's refusal
+  (no live owner agent, per-owner job limit, no attached controller) is now
+  named verbatim and labelled a DSH bookkeeping limitation instead of coming
+  back as a bare `ssh_exec failed: …`. The command itself is still started —
+  detached (`nohup`, stdin cut, output to `.dsh-detach-*.log`, pid in
+  `.dsh-detach-*.pid`, POSIX-portable, no `setsid` needed) — so a long task is
+  never lost to a bookkeeping failure. The tool description and the runtime
+  usage guide now say "prefer `background: true`; detach by hand only when the
+  tool says the job could not be registered", instead of teaching the manual
+  detach as the primary channel.
+- **`ssh_job action: read` joins ring chunks.** 0.2.x answers a read with
+  `{ chunks: [{ text }] }`, not a pre-joined `text`; both shapes are accepted.
+- **The workspace-directory picker scrolls.** In the picker's right pane the
+  directory list had no working scroll region: `.main` was a flex column
+  without `min-height: 0` and `.browser` carried a `min-height: 200px` floor
+  that beat its shrink factor, so a directory ranked below the fold was
+  unreachable (no scrollbar, no way to reach it). `.main` is now a bounded
+  column, `.browser` is the one scrolling region (`min-height: 0`,
+  `overflow-y: auto`, `overscroll-behavior: contain`), and the breadcrumb bar
+  no longer shrinks away. The shipped `lib/client.js` bundles were rebuilt from
+  the patched CSS.
+
 ## [0.4.0] — 2026-11-11
 
 Targets **DSH 0.2.x** (verified on `0.2.2-rc.1`) while staying compatible with

@@ -17,6 +17,7 @@ import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import {
   installAgentExperience,
+  jobOwnerIdOf,
   looksLikeBackgroundCommand,
   remoteWorldOf,
   ROUTE_CONTEXT_NAME,
@@ -242,12 +243,20 @@ const fakeConnection = (overrides: Partial<{ host: string; port: number; usernam
 
     // With a jobs service the task is registered as a session job; run() is
     // only invoked by the registry (never in this unit test, so no network).
-    let startedSpec: { kind?: string; label?: string; run?: () => unknown; owner?: unknown } | undefined
+    type Spec = {
+      kind?: string
+      label?: string
+      run?: () => unknown
+      owner?: unknown
+      toolCall?: { callId?: string; rootCallId?: string }
+      output?: unknown
+    }
+    let startedSpec: Spec | undefined
     let killedJob: string | undefined
     let readJob: string | undefined
     ctx.provide('jobs')
     ctx.jobs = {
-      start: (spec: { kind: string; label: string; run(): unknown; owner?: unknown }) => { startedSpec = spec; return 'bash-42' },
+      start: (spec: Spec) => { startedSpec = spec; return 'bash-42' },
       list: () => [{ id: 'bash-42', kind: 'bash', label: 'sleep 30', status: 'running' }],
       kill: (id: string) => { killedJob = id; return 'requested' },
       read: (id: string) => { readJob = id; return { text: 'tick\n' } },
@@ -255,14 +264,26 @@ const fakeConnection = (overrides: Partial<{ host: string; port: number; usernam
     await new Promise((resolve) => setTimeout(resolve, 10))
     const bgJob = await execTool!.execute(
       { command: 'sleep 30', background: true },
-      { agent: { id: 'sess-routed' }, signal: new AbortController().signal },
+      { agent: { id: 'sess-routed' }, signal: new AbortController().signal, callId: 'call-7', rootCallId: 'call-1' },
     )
     assert.ok(String(bgJob).includes('bash-42'), 'background result must name the job id')
     assert.ok(String(bgJob).includes('background job'), 'background result must say it is a job')
     assert.equal(startedSpec?.kind, 'bash')
     assert.equal(startedSpec?.label, 'sleep 30')
     assert.equal(typeof startedSpec?.run, 'function')
-    assert.equal((startedSpec?.owner as { id?: string } | undefined)?.id, 'sess-routed', 'the job must be owned by the calling session')
+    // DSH 0.2.x resolves `owner` as a SESSION ID against its agent registry.
+    // Handing over the agent OBJECT made it look up a session literally named
+    // "[object Object]" and refuse every registration — the field bug.
+    assert.equal(jobOwnerIdOf({ id: 'sess-routed', session: { header: {} } }), 'sess-routed')
+    assert.equal(jobOwnerIdOf({}), undefined, 'an agent without an id owns nothing')
+    assert.equal(
+      startedSpec?.owner,
+      'sess-routed',
+      'owner must be the session ID string, never the agent object',
+    )
+    assert.deepEqual(startedSpec?.toolCall, { callId: 'call-7', rootCallId: 'call-1' }, 'the creating call is recorded')
+    assert.equal(startedSpec?.output?.length, 1, 'a live output source must be supplied so the job log is not empty')
+    assert.equal(typeof startedSpec?.output?.[0], 'function')
 
     // Auto-registration: a clearly background-style command registers a job
     // even without the explicit flag.
@@ -272,6 +293,28 @@ const fakeConnection = (overrides: Partial<{ host: string; port: number; usernam
     )
     assert.ok(String(autoJob).includes('background job'), 'background-style commands must auto-register')
     assert.equal(typeof startedSpec?.run, 'function')
+
+    // A registry that REFUSES the registration must say so honestly instead of
+    // pretending the task runs as a job. (The detached start it then attempts
+    // fails here because this unit test has no SSH connection at all.)
+    ctx.jobs = {
+      start: () => { throw new Error('session "[object Object]" has no live agent (background job owner must be live)') },
+      list: () => [{ id: 'bash-42', kind: 'bash', label: 'sleep 30', status: 'running' }],
+      kill: (id: string) => { killedJob = id; return 'requested' },
+      // DSH 0.2.x answers a read with ring chunks, not a pre-joined string.
+      read: (id: string) => { readJob = id; return { chunks: [{ text: 'tick\n' }, { text: 'tock\n' }] } },
+    }
+    const refused = await execTool!.execute(
+      { command: 'sleep 30', background: true },
+      { agent: { id: 'sess-routed' }, signal: new AbortController().signal },
+    )
+    assert.ok(String(refused).includes('refused the registration'), 'a refused registration must be reported as such')
+    assert.ok(String(refused).includes('no live agent'), 'the registry reason must be surfaced verbatim')
+    assert.ok(!String(refused).includes('background job `'), 'a refused registration must never claim a job id')
+    assert.ok(
+      String(refused).includes('bookkeeping') && String(refused).includes('not a route or shell failure'),
+      'the refusal must be labelled a DSH bookkeeping limitation so the model stops retrying',
+    )
 
     // ssh_job: list / stop / read the session's remote background jobs.
     const jobTool = registeredTools.find(tool => tool.name === SSH_JOB_TOOL)
@@ -283,7 +326,7 @@ const fakeConnection = (overrides: Partial<{ host: string; port: number; usernam
     assert.ok(String(stopJob).includes('stop requested'), 'stop must route through jobs.kill')
     const readLog = await jobTool!.execute({ action: 'read', job: 'bash-42' }, { agent: { id: 'sess-routed' }, signal: new AbortController().signal })
     assert.equal(readJob, 'bash-42')
-    assert.ok(String(readLog).includes('tick'), 'read must surface the job output tail')
+    assert.ok(String(readLog).includes('tick') && String(readLog).includes('tock'), 'read must join the job output chunks')
     const badAction = await jobTool!.execute({ action: 'nope' }, { agent: { id: 'sess-routed' }, signal: new AbortController().signal })
     assert.ok(String(badAction).includes('list | stop | read'), 'unknown action must be rejected with usage')
   } finally {

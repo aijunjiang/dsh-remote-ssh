@@ -80,6 +80,35 @@ const exports_ = registration?.factory(sandboxRequire) ?? {}
 assert.equal(typeof exports_.apply, 'function', 'the client plugin must export apply')
 assert.deepEqual(exports_.inject, ['slots', 'uiWorkspace'], 'the client plugin must inject the slot registry and the workspace browser service')
 
+// -- (d) the directory pane stays scrollable -------------------------------
+//
+// The workspace-directory picker renders the remote directory list in this
+// dialog's right pane. A `.browser` with a 200px min-height and a `.main`
+// column that has no min-height: 0 grows past the dialog's bottom edge, where
+// nothing scrolls — every directory below the fold became unselectable. Pin
+// the three declarations that keep the pane the one scrolling region.
+
+const classNameOf = (scope: string): string => {
+  // Located by plain string search on purpose: the rule text is a literal
+  // slice of the bundle, so no regex engine detail can change the answer.
+  const marker = `_${scope}{`
+  const at = bundle.indexOf(marker)
+  assert.ok(at > 0, `the bundle must carry the .${scope} rule`)
+  const token = bundle.slice(Math.max(0, bundle.lastIndexOf('.', at)), at)
+  return token.slice(1)
+}
+const ruleOf = (scope: string): string => {
+  const prefix = `.${classNameOf(scope)}_${scope}{`
+  const start = bundle.indexOf(prefix)
+  if (start < 0) return ''
+  const end = bundle.indexOf('}', start)
+  return end < 0 ? '' : bundle.slice(start + prefix.length, end)
+}
+assert.match(ruleOf('main'), /min-height:0/, '.main must be a bounded flex column, or the list overflows the dialog')
+assert.match(ruleOf('browser'), /overflow-y:auto/, '.browser must be the scrolling region')
+assert.doesNotMatch(ruleOf('browser'), /min-height:200px/, '.browser must not keep a floor taller than the space it may shrink into')
+assert.match(ruleOf('toolbar'), /flex:none/, 'the breadcrumb bar must not shrink away when the list is long')
+
 // -- the source map exists and is a valid v3 object -----------------------
 
 const map = JSON.parse(readFileSync(`${bundlePath}.map`, 'utf8')) as { version?: number; mappings?: string; sources?: unknown }
@@ -87,4 +116,4 @@ assert.equal(map.version, 3)
 assert.equal(typeof map.mappings, 'string')
 assert.ok(Array.isArray(map.sources))
 
-console.log('client-bundle smoke: ok — registration, externals, materialization, and map all verified')
+console.log('client-bundle smoke: ok — registration, externals, materialization, scrollable directory pane, and map all verified')

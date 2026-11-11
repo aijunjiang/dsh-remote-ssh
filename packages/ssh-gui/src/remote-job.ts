@@ -28,6 +28,14 @@ export interface RemoteJobHooks {
   cancel(reason?: string): void
   done: Promise<RemoteJobOutcome>
   readOutput?(): string
+  /**
+   * Live output for the registry's own ring (`JobSpec.output`). Registered as
+   * the job's pull source, this is what makes `job_output` and the header log
+   * show the real tail; without it the ring stays empty and the model reads an
+   * empty log for a job that is plainly producing output.
+   * @returns the stream of NOT-YET-DELIVERED output bytes.
+   */
+  output(): AsyncIterable<Uint8Array>
 }
 
 /** Options for one background task. */
@@ -88,7 +96,7 @@ export class TailBuffer {
  * runs. `cancel` before spawn only queues the group kill.
  * @param session - the attached helper session for the route.
  * @param spec - command and remote cwd.
- * @returns the hook set the jobs registry drives (cancel/done/readOutput).
+ * @returns the hook set the jobs registry drives (cancel/done/readOutput/output).
  */
 export function backgroundJobHooks(session: SshHelperSession, spec: RemoteJobSpec): RemoteJobHooks {
   const tail = new TailBuffer(spec.maxTailBytes ?? 256 * 1024)
@@ -101,6 +109,21 @@ export function backgroundJobHooks(session: SshHelperSession, spec: RemoteJobSpe
   let killReason: string | undefined
   let killQueued = false
   let timedKill: ReturnType<typeof setTimeout> | undefined
+
+  // Fan-out between the two readers of one output stream: `tail` (the
+  // completion notice) and the registry's pull source (the job's log ring).
+  // A pull source is a single-consumer async iterable per pull, so every
+  // reader subscribes to this buffer and receives each chunk exactly once.
+  const subscribers = new Set<(chunk: Uint8Array) => void>()
+  let ended = false
+  const publish = (chunk: Uint8Array): void => {
+    if (chunk.length === 0) return
+    for (const deliver of [...subscribers]) deliver(chunk)
+  }
+  const endPublish = (): void => {
+    ended = true
+    for (const deliver of [...subscribers]) deliver(new Uint8Array(0))
+  }
 
   // Function-scope killers: shared by the spawn path (after pid/pgid arrive)
   // and by cancel() from the jobs registry.
@@ -122,6 +145,7 @@ export function backgroundJobHooks(session: SshHelperSession, spec: RemoteJobSpe
       settled = true
       if (timedKill !== undefined) clearTimeout(timedKill)
       holder.release()
+      endPublish()
       resolvePromise(outcome)
     }
 
@@ -144,6 +168,7 @@ export function backgroundJobHooks(session: SshHelperSession, spec: RemoteJobSpe
         const registration = session.registerProcess({
           onData(_stream, chunk) {
             tail.push(chunk.toString('utf8'))
+            publish(new Uint8Array(chunk))
           },
           onEof() { /* exit/gone carry the terminal facts */ },
           onExit(code, sig) {
@@ -193,5 +218,39 @@ export function backgroundJobHooks(session: SshHelperSession, spec: RemoteJobSpe
     },
     done,
     readOutput: () => tail.text(),
+    output(): AsyncIterable<Uint8Array> {
+      return {
+        [Symbol.asyncIterator]() {
+          // Chunks landing between two pulls stay queued here; the terminal
+          // signal is an empty chunk (the registry stops at EOF).
+          const queue: Uint8Array[] = []
+          let wake: (() => void) | undefined
+          const finished = { done: true as const, value: undefined as unknown as Uint8Array }
+          const deliver = (chunk: Uint8Array): void => {
+            queue.push(chunk)
+            const resume = wake
+            wake = undefined
+            resume?.()
+          }
+          subscribers.add(deliver)
+          if (ended) deliver(new Uint8Array(0))
+          return {
+            async next() {
+              if (queue.length === 0) await new Promise<void>((resolveWake) => { wake = resolveWake })
+              const value = queue.shift()
+              if (value === undefined || value.length === 0) {
+                subscribers.delete(deliver)
+                return finished
+              }
+              return { done: false as const, value }
+            },
+            async return() {
+              subscribers.delete(deliver)
+              return finished
+            },
+          }
+        },
+      }
+    },
   }
 }

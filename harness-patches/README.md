@@ -15,6 +15,7 @@ upstream, so the 0.1.2 cuts no longer apply.
 |---|---|---|
 | `dsh-remote-ssh-job-actions.patch` | `dd6322d6…` (legacy) | **`aa8262ec09…` (current)** ✅ |
 | `dsh-remote-ssh-route-labels.patch` | `dd6322d6…` (legacy) | **`aa8262ec09…` (current)** ✅ |
+| `dsh-remote-ssh-2026-11-directory-picker-scroll.patch` | — | **DSH 0.2.2** (`fcc0ad46…`) ✅ |
 
 - **Patch 1**: `dsh-remote-ssh-route-labels.patch` — route-aware workspace/session labels for same-named remote directories.
 - **Patch 2**: `dsh-remote-ssh-job-actions.patch` — a real **Stop** button for background jobs in the session header (jobs.kill from the browser).
@@ -94,6 +95,27 @@ pnpm run build:lib:client    # ui-workspace, ui-jobs (and peers)
 
 Regenerate after upstream changes:
 `git -C <harness> diff <baseline>..HEAD -- packages/util/workspace-path packages/workspace/workspace packages/client/ui-workspace/src/client/tree.ts`
+
+---
+
+---
+
+## Patch 3 — scrollable directory-picker columns (DSH 0.2.2)
+
+`packages/client/ui-directory-picker-browse/src/client/DirectoryBrowser.module.css`
+gives each Miller column `min-height: 0` and `overscroll-behavior: contain`.
+A column is a flex **row** item whose default `min-height: auto` lets a long
+level grow past the row: the entries (and the footer buttons) then sit outside
+the card, where no ancestor scrolls them — a remote home with many directories
+was partly unselectable. One declaration, no API change; the plugin's own
+sidebar picker had the same class of bug and is fixed inside the plugin
+(`flow.module.css`: bounded `.main`, scrolling `.browser`).
+
+```bash
+git -C "$HARNESS" apply --check "$PATCHES/dsh-remote-ssh-2026-11-directory-picker-scroll.patch"
+git -C "$HARNESS" apply "$PATCHES/dsh-remote-ssh-2026-11-directory-picker-scroll.patch"
+pnpm run build:lib:client   # then reload the page
+```
 
 ---
 

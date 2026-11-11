@@ -1,0 +1,17 @@
+--- a/packages/client/ui-directory-picker-browse/src/client/DirectoryBrowser.module.css
++++ b/packages/client/ui-directory-picker-browse/src/client/DirectoryBrowser.module.css
+@@ -224,7 +224,14 @@
+   gap: 2px;
+   flex: 1 1 0;
+   min-width: 256px;
++  /* A list column is a flex ROW item: its default min-height: auto lets a
++   * long level grow past the row and push the remaining entries — and the
++   * footer buttons — outside the card, where no ancestor scrolls them. The
++   * zero minimum keeps the column inside the row so its own overflow-y can
++   * scroll: a remote home with many directories hit exactly this. */
++  min-height: 0;
+   overflow-y: auto;
++  overscroll-behavior: contain;
+   /* The themed scrollbar occupies the column's edge (styled scrollbars are
+    * classic, gutter-taking ones); the extra clearance keeps the row pills
+    * clear of the thumb. */

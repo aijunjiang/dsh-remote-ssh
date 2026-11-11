@@ -23,6 +23,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { SshHelperRouter } from './helper-router.ts'
 import { SshHelperError, SshTransportError } from '../../ssh/src/channel.ts'
 import { runRemoteCommand } from './remote-exec.ts'
+import type { SshHelperSession } from './helper-session.ts'
 import { backgroundJobHooks } from './remote-job.ts'
 import { routesManifestPath } from './routes-manifest.ts'
 import {
@@ -68,6 +69,9 @@ interface AgentLike {
 interface ExecutionLike {
   agent?: AgentLike
   signal: AbortSignal
+  /** Tool-invocation identity, when the tools layer hands one over. */
+  callId?: unknown
+  rootCallId?: unknown
 }
 
 interface SystemPromptLike {
@@ -203,9 +207,9 @@ function usageContextText(facts: RouteFacts, world: RemoteWorld): string {
     'Working in this SSH session:',
     `- Route \`${facts.id}\` → ${facts.username}@${facts.host} (remote cwd ${facts.path}). ${channel}`,
     '- Run remote commands with ssh_exec: pass the WHOLE script as one `command` string (no local quoting layer), locale is fixed to C.',
-    '- JOB POLICY (follow it, do not improvise): ordinary quick calls run FOREGROUND and never use background. Explicitly daemonizing commands (`setsid` / `nohup` / `disown`) AUTO-register as DSH background jobs. Any other long-running task you intend to keep alive passes `background: true`. A bare trailing `&` is not a job signal. Wrapper scripts that background internally (e.g. `./web.sh restart`, a run.sh that daemonizes) are NOT detected — pass `background: true` for them so the task is tracked and stoppable.',
-    '- LONG-RUNNING or background remote tasks: start them DETACHED so ssh_exec returns immediately, e.g. command: `setsid bash -c \'python3 display.py\' </dev/null >run.log 2>&1 &`. Cut stdin (</dev/null) and redirect ALL output — a command that keeps a pipe open (a foreground loop without detach) makes the exec channel wait for EOF and looks hung. ssh_exec returning only means "started", never "finished".',
-    '- Verify a background task via its log file (`tail -f run.log`) and a pidfile (`... & echo $! > run.pid`); kill via pidfile (`kill $(cat run.pid)` / `kill -9`). Do NOT use `pkill -f <pattern>`: it can match your own command line and kill the shell running it. Output redirected to files is block-buffered — for reliable streaming logs run python with `-u` or `PYTHONUNBUFFERED=1`, and flush after critical prints.',
+    '- JOB POLICY (follow it, do not improvise): ordinary quick calls run FOREGROUND and never use background. Explicitly daemonizing commands (`setsid` / `nohup` / `disown`) AUTO-register as DSH background jobs. Any other long-running task you intend to keep alive passes `background: true`. A bare trailing `&` is not a job signal and is not a background channel. Wrapper scripts that background internally (e.g. `./web.sh restart`, a run.sh that daemonizes) are NOT detected — pass `background: true` for them so the task is tracked and stoppable.',
+    '- LONG-RUNNING remote tasks: pass `background: true` and let the tool do the detaching. A registered job appears in the job indicator next to the session title; read it with `job_output` (or `ssh_job action: read`, id like `bash-3`), stop it with `job_kill` / `ssh_job action: stop` / the header button. Returning only means "registered", never "finished".',
+    '- FALLBACK ONLY — when ssh_exec reports that the background job could NOT be registered (a DSH bookkeeping failure, not yours to fix), start the task detached yourself: `setsid bash -c \'python3 -u display.py\' </dev/null >run.log 2>&1 & echo $! >run.pid`, then watch `tail -f run.log` and stop it with `kill $(cat run.pid)` / `kill -9`. Cut stdin and redirect ALL output or the exec channel waits for EOF and looks hung. Do NOT use `pkill -f <pattern>`: it can match your own command line and kill the shell running it. Redirected output is block-buffered — run python with `-u` (or `PYTHONUNBUFFERED=1`).',
     '- Give short commands the default timeout; raise `timeoutMs` only when a genuinely long FOREGROUND job needs it.',
     '- Output is capped at 256 KiB per stream (stdout/stderr); truncation is marked. The engine verifies every result with an end sentinel: an exit-0 "(no output)" result marked sentinel-verified is genuinely empty; if the result says output was lost, it auto-retried and you must NOT treat an empty result as fact — re-run or narrow the command.',
     '- Do NOT hand-roll a local ssh.exe/ssh call — on Windows confined sessions it cannot spawn and wastes turns/approvals. ssh_exec calls are serialized per step and reuse one helper connection per route; run multiple commands inside one call when you can.',
@@ -295,18 +299,56 @@ interface JobsLike {
     kind: string
     label: string
     outputLimitBytes?: number
+    /** Owning session id — the registry fences access by it (DSH 0.2.x). */
     owner?: unknown
-    run(): unknown
-  }): string
+    /** Creating tool invocation, retained in the durable lifecycle records. */
+    toolCall?: { callId: string; rootCallId?: string }
+    /** Live output the registry pumps; its absence leaves the job's log empty. */
+    output?: ReadonlyArray<() => AsyncIterable<Uint8Array> | undefined>
+    run(...args: unknown[]): unknown
+  }): string | { id: string }
   list(caller?: unknown): Array<{ id: string; kind: string; label: string; status: string; detail?: string }>
   kill(id: string, caller?: unknown, reason?: string): string
-  read(id: string, caller?: unknown): { text: string }
+  read(id: string, caller?: unknown): { text?: string; chunks?: ReadonlyArray<{ text?: string; data?: string }> }
 }
 
 /** One-line label for the session job indicator. */
 function summarizeCommand(command: string): string {
   const flat = command.replace(/\s+/gu, ' ').trim()
   return flat.length > 72 ? `${flat.slice(0, 69)}…` : flat
+}
+
+/**
+ * The job id `jobs.start()` issued.
+ *
+ * DSH 0.2.x returns a bare id string; a branded `JobId` is still a string at
+ * runtime. Registries that hand back a descriptor object are tolerated so the
+ * call site never depends on one spelling.
+ */
+function jobIdOf(started: unknown): string {
+  if (typeof started === 'string') return started
+  if (started !== null && typeof started === 'object' && 'id' in started) {
+    const id = (started as { id?: unknown }).id
+    if (typeof id === 'string') return id
+  }
+  throw new Error('the job registry returned no job id')
+}
+
+/**
+ * The `owner` a registry expects: DSH 0.2.x resolves the owning session id
+ * against its live agent registry (`Agent.id`), while the tool execution
+ * face hands the tools layer an agent that carries `.id` plus, when prompt
+ * assembly built it, `.session`. Only the id is meaningful to the registry —
+ * passing the whole agent object made it look up a session named
+ * `"[object Object]"` and refuse every background registration, which is the
+ * field bug that took the whole background channel down.
+ * @param agent - the invoking tool-execution agent, if any.
+ * @returns the owning session id, or undefined for an agent without one.
+ */
+export function jobOwnerIdOf(agent: AgentLike | undefined): string | undefined {
+  const id = agent?.id
+  if (typeof id === 'string' && id !== '') return id
+  return undefined
 }
 
 /**
@@ -320,9 +362,57 @@ export function looksLikeBackgroundCommand(command: string): boolean {
   return /\b(setsid|nohup|disown)\b/u.test(command)
 }
 
+/** The registry's own words for a refused registration, stripped of noise. */
+function registrationReason(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error)
+  return message.replace(/^dsh-ssh: /u, '').trim() || 'no reason given'
+}
+
 /** Options accepted by `ssh_route_status`. */
 interface RouteStatusArgs {
   checkLive?: unknown
+}
+
+/**
+ * Run one command FULLY DETACHED on the route (nohup + stdin cut + every
+ * stream redirected to a log file, POSIX-portable so it also works on macOS
+ * targets where `setsid` does not exist), used when a background job cannot be
+ * registered. One short call starts it and reports where the log and pidfile
+ * are; nothing waits on the task afterwards.
+ * @param session - the attached helper session for the route.
+ * @param spec - the user's command and the remote cwd.
+ * @returns model-facing text naming the log/pidfile and how to stop it.
+ */
+async function startDetachedCommand(
+  session: SshHelperSession,
+  spec: { command: string; cwd: string },
+): Promise<string> {
+  const base = spec.cwd.replace(/\/+$/u, '')
+  const stamp = `${base}/.dsh-detach-${Date.now().toString(36)}`
+  // The user's script is fed to the shell's stdin verbatim (no re-quoting
+  // layer) with every stream of the whole call redirected into the log — so
+  // the call returns as soon as the detaching lines have run, and nothing the
+  // script prints afterwards can keep the SSH channel open. The detach itself
+  // is POSIX-portable and needs no `setsid` (absent on macOS targets): stdin
+  // cut, `nohup`, and both streams on the log file.
+  //
+  // The pid line is its OWN line: appending `echo $!` to the `&` line makes
+  // the child duplicate the log descriptor, and $! then stays alive in the
+  // channel until the child exits (the channel would wait on its very output).
+  const script = `${spec.command}\nnohup sh -s </dev/null >&0 2>&0 &\necho $! >"${stamp}.pid"\n`
+  const command = `exec sh -s >"${stamp}.log" 2>&1 <<'DSH_DETACH_EOF'\n${script}DSH_DETACH_EOF`
+  try {
+    const outcome = await runRemoteCommand(session, { command, cwd: spec.cwd })
+    const note = `started detached on the route (every line the command itself prints goes to the log too) — `
+      + `log: \`${stamp}.log\`, pidfile: \`${stamp}.pid\`. `
+      + `Watch it with \`tail -f ${stamp}.log\` and stop it with \`kill $(cat ${stamp}.pid)\` `
+      + '(never `pkill -f` — it can match your own shell). Returning only means started, never finished.'
+    return outcome.exitCode === 0
+      ? note
+      : `${note} (the start call exited ${String(outcome.exitCode)}: ${(outcome.stderr || outcome.stdout).trim()})`
+  } catch (error) {
+    return `ssh_exec failed while starting the detached fallback: ${error instanceof Error ? error.message : String(error)}`
+  }
 }
 
 /**
@@ -367,32 +457,57 @@ async function executeSshExec(
   const wantsBackground = args.background === true
     || (args.background !== false && looksLikeBackgroundCommand(command))
   if (wantsBackground) {
-    if (jobs === undefined) {
-      return 'ssh_exec: this host provides no background-job service (`ctx.jobs`), so `background: true` cannot register a session job. '
-        + 'Start the task detached instead: `setsid bash -c \'…\' </dev/null >run.log 2>&1 &` and watch run.log / run.pid — '
-        + 'returning only means started, never finished.'
-    }
     let session
     try {
       session = router.sessionForId(view.facts.id)
     } catch (error) {
       return failureText(error)
     }
+    if (jobs === undefined) {
+      return 'ssh_exec: this host provides no background-job service (`ctx.jobs`), so `background: true` cannot register a session job. '
+        + 'Start the task detached instead: `setsid bash -c \'…\' </dev/null >run.log 2>&1 &` and watch run.log / run.pid — '
+        + 'returning only means started, never finished.'
+    }
+    const owner = jobOwnerIdOf(exec.agent)
+    const callId = typeof exec.callId === 'string' && exec.callId !== '' ? exec.callId : undefined
+    const rootCallId = typeof exec.rootCallId === 'string' && exec.rootCallId !== '' ? exec.rootCallId : undefined
+    let registrationError: unknown
     try {
       const label = summarizeCommand(command)
-      const jobId = jobs.start({
+      const hooks = backgroundJobHooks(session, { command, cwd: base })
+      const jobId = jobIdOf(jobs.start({
         kind: 'bash',
         label,
         outputLimitBytes: 256 * 1024,
-        owner: exec.agent,
-        run: () => backgroundJobHooks(session, { command, cwd: base }),
-      })
+        // The registry fences by OWNING SESSION ID: handing it the agent
+        // object made DSH 0.2.x look up a session literally named
+        // "[object Object]" and refuse every registration.
+        ...owner === undefined ? {} : { owner },
+        ...callId === undefined ? {} : { toolCall: { callId, ...rootCallId === undefined ? {} : { rootCallId } } },
+        // Live output source, so job_output / the header log read the real
+        // tail instead of an empty ring. The registry pumps this at its own
+        // cadence and the hooks buffer independently for the completion notice.
+        output: [() => hooks.output()],
+        run: () => hooks,
+      }))
       return `ssh_exec: background job \`${jobId}\` started on route \`${view.facts.id}\` (${view.facts.username}@${view.facts.host}): ${label}. `
         + 'It is shown in the background-job indicator next to the session title — read its log and stop it there '
         + '(log tail capped at 256 KiB). Returning means the job is REGISTERED, not finished.'
     } catch (error) {
-      return failureText(error)
+      // The registry refused the registration (no live owner agent, owner
+      // limit, no attached controller): say WHY, then still start the command
+      // detached so a long task is not lost to a bookkeeping failure.
+      registrationError = error
     }
+    // The command itself is fine — only the bookkeeping failed. Start it
+    // detached so a long task is not lost, and label the report honestly so a
+    // model stops retrying a call that cannot succeed in this composition.
+    const detached = await startDetachedCommand(session, { command, cwd: base })
+    return `ssh_exec: the background-job registry refused the registration (${registrationReason(registrationError)}) — `
+      + 'no tracked job exists for it. That is a DSH composition/job-bookkeeping limitation (this session has no '
+      + 'live agent owning jobs, its per-owner job limit is reached, or no job controller serves it), not a route or '
+      + 'shell failure. Fix hint: start long work detached and verify it through its own log/pidfile. '
+      + `Fallback: ${detached}`
   }
 
   const requestedTimeout = typeof args.timeoutMs === 'number' && Number.isFinite(args.timeoutMs)
@@ -517,7 +632,12 @@ function executeSshJob(
       : `ssh_job: ${job} ${result}.`
   }
   const read = jobs.read(job, exec.agent)
-  const text = typeof read.text === 'string' ? read.text : ''
+  // DSH 0.2.x answers with ring chunks (`{ text }`), older faces with one
+  // pre-joined string; accept both so a read never comes back blank.
+  const joined = Array.isArray(read.chunks)
+    ? read.chunks.map(chunk => (typeof chunk.text === 'string' ? chunk.text : '')).join('')
+    : ''
+  const text = typeof read.text === 'string' && read.text !== '' ? read.text : joined
   return text !== '' ? text : `ssh_job: ${job} has no output yet.`
 }
 
@@ -607,11 +727,12 @@ export function installAgentExperience(ctx: Context): void {
         + 'against an end sentinel — a lost-output (exit 0 with no bytes and no sentinel) auto-retries once, and '
         + 'an exit-0 "(no output)" marked sentinel-verified is genuinely empty. '
         + 'Background jobs: pass `background: true` to register a DSH background job for this session (shown in the '
-        + 'job indicator next to the session title; manage it with ssh_job list/stop/read). Explicit daemonization '
-        + '(setsid / nohup / disown) auto-registers without the flag; ordinary quick calls with a bare `&` do not. '
-        + 'If the host lacks a jobs '
-        + 'service, start detached (`setsid bash -c \'…\' </dev/null >run.log 2>&1 &`) instead — returning only means '
-        + 'started, never finished; verify via run.log/run.pid, never pkill -f (it can kill your own shell). '
+        + 'job indicator next to the session title; read it with job_output / ssh_job read, stop it with job_kill / '
+        + 'ssh_job stop, or in the header). Explicit daemonization (setsid / nohup / disown) auto-registers without the '
+        + 'flag; ordinary quick calls with a bare `&` do not — that `&` is NOT a background channel and does not survive '
+        + 'the call. NEVER hand-roll a detach for a long task: prefer `background: true`. Only when the tool itself says '
+        + 'the job could not be registered should you fall back to `setsid … </dev/null >run.log 2>&1 &` and watch '
+        + 'run.log / run.pid — returning only means started, never finished; never pkill -f (it can kill your own shell). '
         + 'Use ONLY when the runtime context shows this session is on an SSH route; on a local session the tool refuses, '
         + 'and on a degraded (spelled-but-unresolvable) route it says so and lists recovery steps. '
         + 'When a route fails, call ssh_route_status first. '
@@ -672,8 +793,9 @@ export function installAgentExperience(ctx: Context): void {
     const disposeJob = tools.register({
       name: SSH_JOB_TOOL,
       description:
-        'Manage the DSH background jobs of the CURRENT session — the ones started with ssh_exec `background: true` '
-        + '(they run on the session\'s SSH route). `action: list` shows ids/status/labels; `action: stop` with `job` '
+        'Manage the DSH background jobs of the CURRENT session — the ones started with ssh_exec `background: true`, '
+        + 'plus any auto-registered as a job by explicit daemonization (setsid/nohup/disown); they run on the '
+        + 'session\'s SSH route. `action: list` shows ids/status/labels; `action: stop` with `job` '
         + '(e.g. bash-3) requests a real remote process-group kill; `action: read` with `job` returns the job\'s '
         + 'log tail. Call this when the user asks to stop or check a background task, or to tidy finished ones.',
       parameters: {

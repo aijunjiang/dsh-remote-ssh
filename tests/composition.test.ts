@@ -24,7 +24,10 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
 const patchPath = fileURLToPath(new URL('../cordis.patch.yml', import.meta.url))
-const basePath = 'C:/Users/Administrator/Documents/deepseek-harness/packages/bundle/base/cordis.patch.yml'
+// The base bundle the patch makes claims about: an explicit path wins, so the
+// suite can run against whichever harness checkout the operator boots.
+const basePath = process.env.DSH_HARNESS_BASE_PATCH
+  ?? 'C:/Users/Administrator/Documents/deepseek-harness/packages/bundle/base/cordis.patch.yml'
 
 const patch = readFileSync(patchPath, 'utf8')
 const base = readFileSync(basePath, 'utf8')
@@ -70,7 +73,8 @@ for (const id of ['subprocess', 'fs-sandbox', 'sandbox', 'permission', 'sandbox-
 
 // The directory chooser the GUI replaces lives in the web-app bundle layer.
 {
-  const webAppPath = 'C:/Users/Administrator/Documents/deepseek-harness/packages/bundle/web-app/cordis.patch.yml'
+  // Sits beside whichever base bundle the run resolved (see basePath).
+  const webAppPath = basePath.replaceAll('\\', '/').replace('/base/', '/web-app/')
   const webApp = readFileSync(webAppPath, 'utf8')
   assert.ok(
     rowIds(webApp).includes('directory-picker'),

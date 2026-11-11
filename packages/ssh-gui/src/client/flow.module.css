@@ -282,6 +282,12 @@
   display: flex;
   flex-direction: column;
   flex: 1 1 auto;
+  /* The pane (breadcrumbs + browser + status) is bounded by the dialog, and
+     the browser is the one region that scrolls: without min-height: 0 a flex
+     column grows to its content, the browser's own overflow has nothing to
+     clip, and the directories below the fold become unreachable — with no
+     scrollbar to hint they exist. */
+  min-height: 0;
   min-width: 0;
 }
 
@@ -414,6 +420,7 @@
 .toolbar {
   display: flex;
   align-items: center;
+  flex: none;
   gap: 8px;
   min-height: 36px;
   padding: 5px 16px;
@@ -542,8 +549,11 @@
 
 .browser {
   flex: 1 1 auto;
-  min-height: 200px;
+  /* Zero, not 200px: the floor used to win over the shrink factor and pushed
+     the list past the dialog's bottom edge, where nothing could scroll it. */
+  min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 6px 10px 8px 8px;
 }
 
@@ -1318,7 +1328,9 @@
     border-bottom: 1px solid var(--dshssh-line);
   }
 
+  /* Stacked: the browser keeps the remaining height and still scrolls. */
   .main {
+    flex: 1 1 0;
     min-height: 0;
   }
 
