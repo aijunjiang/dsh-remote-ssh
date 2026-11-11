@@ -1,6 +1,6 @@
 {
   "name": "dsh-remote-ssh",
-  "version": "0.3.3",
+  "version": "0.4.0",
   "description": "Run your DSH workspace on a remote host over SSH - connection sidebar, remote directory browser, per-session routing, agent ssh_exec/route-status; files and commands execute on your target while sessions, GUI and $DSH_HOME stay local.",
   "type": "module",
   "main": "./src/index.ts",
@@ -29,12 +29,24 @@
     "@deepseek-ai/dsh-host-directory-picker-native": "*"
   },
   "peerDependenciesMeta": {
-    "react": { "optional": true },
-    "react-dom": { "optional": true },
-    "@deepseek-ai/cordis": { "optional": true },
-    "@deepseek-ai/schemastery": { "optional": true },
-    "@deepseek-ai/dsh-host-directory-picker": { "optional": true },
-    "@deepseek-ai/dsh-host-directory-picker-native": { "optional": true }
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    },
+    "@deepseek-ai/cordis": {
+      "optional": true
+    },
+    "@deepseek-ai/schemastery": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-host-directory-picker": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-host-directory-picker-native": {
+      "optional": true
+    }
   },
   "dsh": {
     "bundle": {
@@ -51,7 +63,15 @@
       ]
     }
   },
-  "keywords": ["dsh-plugin", "dsh", "ssh", "remote-development", "deepseek-harness", "plugin", "remote-workspace"],
+  "keywords": [
+    "dsh-plugin",
+    "dsh",
+    "ssh",
+    "remote-development",
+    "deepseek-harness",
+    "plugin",
+    "remote-workspace"
+  ],
   "license": "MIT",
   "repository": {
     "type": "git",

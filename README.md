@@ -10,7 +10,8 @@ Manage connections and browse remote directories from the web GUI; each session 
 
 | Plugin version | DSH baseline |
 |---|---|
-| **v0.3.3** (current) | **0.1.5-rc.1** — `readByteRange` implemented, `connection.rpc.handle` regression worked around, SSH keepalive on by default, harness patches re-cut |
+| **v0.4.0** (current) | **0.2.2-rc.1** — PTY terminals on the target, workspace host labels, invariant companion removed, `terminalEnvironment` and the subprocess handle aligned |
+| v0.3.3 | 0.1.5-rc.1 — `readByteRange` implemented, `connection.rpc.handle` regression worked around, SSH keepalive on by default, harness patches re-cut |
 | v0.3.0 – v0.3.2 | 0.1.2-rc.1 (legacy harness patches, keepalive disabled) |
 
 Install straight from this repository (git source), so `main` always tracks the
@@ -35,6 +36,7 @@ dsh plugin --profile web add github:aijunjiang/dsh-remote-ssh
 | **Remote fs/subprocess** (full mode) | `ctx.fs` / `ctx.subprocess` point at the remote host: git, tests, builds, reads and writes happen there |
 | **Agent guidance** (built-in) | Routed sessions declare "which machine am I on" in the runtime context, plus a usage guide, `ssh_exec` / `ssh_route_status`, and `DSH_SSH_*` env vars — no more guessing from paths, no silent "empty project" mirrors |
 | **Remote terminals** | `ctx.subprocess.spawnTerminal` allocates a real PTY on the target (helper `pty_*` ops): interactive shells with job control, resize that reaches the running application, and tree-scoped teardown. Full mode only — GUI-only keeps terminals local |
+| **Workspace host labels** | Each routed Workspace's title carries its host (`🌐 user@host · name`), so the sidebar says which machine a Workspace lives on — 0.2.x stores no remote field and exposes no header slot |
 | **Credentials stay local** | Passwords and identity keys only ever live under this machine's DSH home |
 
 ---
