@@ -26,8 +26,7 @@
     "@deepseek-ai/cordis": ">=4.0.1",
     "@deepseek-ai/schemastery": ">=3.18.1",
     "@deepseek-ai/dsh-host-directory-picker": "*",
-    "@deepseek-ai/dsh-host-directory-picker-native": "*",
-    "@deepseek-ai/dsh-invariants": "*"
+    "@deepseek-ai/dsh-host-directory-picker-native": "*"
   },
   "peerDependenciesMeta": {
     "react": { "optional": true },
@@ -35,8 +34,7 @@
     "@deepseek-ai/cordis": { "optional": true },
     "@deepseek-ai/schemastery": { "optional": true },
     "@deepseek-ai/dsh-host-directory-picker": { "optional": true },
-    "@deepseek-ai/dsh-host-directory-picker-native": { "optional": true },
-    "@deepseek-ai/dsh-invariants": { "optional": true }
+    "@deepseek-ai/dsh-host-directory-picker-native": { "optional": true }
   },
   "dsh": {
     "bundle": {

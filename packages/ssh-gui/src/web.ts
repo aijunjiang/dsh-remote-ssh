@@ -13,6 +13,7 @@ import type { SFTPWrapper, Stats } from 'ssh2'
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { pickNativeDirectory } from '@deepseek-ai/dsh-host-directory-picker-native'
+import { labelRoutedWorkspaces } from './workspace-labels.ts'
 import SshRegistry from './registry.ts'
 import type { ConnectionInput, RegistryConfig } from './registry.ts'
 import type { SshConnection } from './connection.ts'
@@ -273,6 +274,40 @@ export function apply(ctx: Context, config: WebChannelConfig): void {
     )
   }
   setTimeout(() => refreshRoutesManifest(), 0)
+
+  /**
+   * Put each routed Workspace's host in its title.
+   *
+   * Deferred rather than inline: the workspace registry is mounted by a row that
+   * starts after this one, and the connections themselves have to exist before
+   * an id can be spelled as a host. One pass at boot is enough — a Workspace's
+   * directory never changes, so a label only needs writing once.
+   */
+  void (async () => {
+    // Retry while the registry is still coming up: both it and the connections
+    // are mounted by rows that start after this one, and a label needs BOTH (the
+    // path names a connection id, the title needs that connection's host). A
+    // bounded settle keeps a deployment without workspaces from waiting forever.
+    const deadline = Date.now() + 15_000
+    while (Date.now() < deadline) {
+      const registry = ctx.get('workspaceRegistry') as { list?: () => unknown[] } | undefined
+      const connections = ctx.get('sshRegistry') as { list?: () => unknown[] } | undefined
+      const workspaces = registry?.list?.() ?? []
+      const mounted = (connections?.list?.() ?? []).length
+      if (workspaces.length > 0 && mounted > 0) {
+        try {
+          const result = await labelRoutedWorkspaces(ctx as unknown as { get?: (name: string) => unknown }, { apply: true })
+          if (result.written > 0) ctx.logger.info(`dsh-ssh: labelled ${result.written} routed workspace(s) with their host`)
+          return
+        } catch (error) {
+          // A refused label is cosmetic; never let it disturb the boot.
+          void ctx.logger.warn(`dsh-ssh: workspace labels skipped: ${String(error)}`)
+          return
+        }
+      }
+      await new Promise((resolve) => setTimeout(resolve, 500))
+    }
+  })()
 
   /** The remote home directory: the login environment's HOME, else the spec cwd. */
   const remoteHome = async (id: string, signal?: AbortSignal): Promise<string> => {

@@ -27,7 +27,9 @@
 import { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { SubprocessRuntime } from '@deepseek-ai/dsh-subprocess'
+import type { SubprocessTerminalEnvironment, SubprocessTerminalHandle, SubprocessTerminalSpawnSpec } from '@deepseek-ai/dsh-subprocess'
 import { RemoteProcessHandle } from './process.ts'
+import { RemoteTerminalHandle } from './terminal.ts'
 import type { HelperHost, RemoteSpawnRequest, StreamMode } from './process.ts'
 import { ENV_PROBE_COMMAND, buildChildEnvironment, parseNulEnvironment } from './environment.ts'
 import { resolveRemoteExecutable } from './resolve.ts'
@@ -76,7 +78,7 @@ export class SshSubprocessRuntime extends SubprocessRuntime {
   })
 
   private readonly config: Config
-  private readonly live = new Set<RemoteProcessHandle>()
+  private readonly live = new Set<RemoteProcessHandle | RemoteTerminalHandle>()
   private readonly router: SshHelperRouter
   /** Login-environment probes, cached per transport (one per connection). */
   private readonly probedEnv = new WeakMap<object, Promise<Record<string, string>>>()
@@ -103,13 +105,33 @@ export class SshSubprocessRuntime extends SubprocessRuntime {
   async terminateAll(): Promise<void> {
     this.disposing = true
     const handles = [...this.live]
-    for (const handle of handles) handle.terminate()
-    await Promise.allSettled(handles.map(async (handle) => await handle.waitForExit()))
+    for (const handle of handles) void handle.terminate()
+    // Ordinary process handles own a `waitForExit`; terminals report through
+    // `done`. Both settle once the remote tree is gone, which is what this
+    // teardown waits for.
+    await Promise.allSettled(handles.map(async (handle) => {
+      if (handle instanceof RemoteTerminalHandle) await handle.done.catch(() => undefined)
+      else await handle.waitForExit()
+    }))
     this.live.clear()
   }
 
+  /** The connection owner; needed where the ssh2 client itself is the answer. */
   private get connection(): SshConnection {
     return (this.ctx as unknown as { ssh: SshConnection }).ssh
+  }
+
+  /**
+   * The default helper transport.
+   *
+   * Read through the router rather than from `ctx.ssh` directly: a connection
+   * owns the ssh2 client and the SFTP channel, while a TRANSPORT is the helper
+   * session on top of it (`request`/`send`/`registerProcess`/`runtimePath`).
+   * They are different faces of the same target, and only the transport can
+   * serve the environment and ripgrep probes below.
+   */
+  private get defaultTransport(): HelperTransport {
+    return this.router.resolveCwd(undefined).transport
   }
 
   /**
@@ -135,7 +157,7 @@ export class SshSubprocessRuntime extends SubprocessRuntime {
 
   /** The default transport's login environment (for `resolveExecutable`). */
   private async remoteEnv(): Promise<Record<string, string>> {
-    return await this.remoteEnvFor(this.connection)
+    return await this.remoteEnvFor(this.defaultTransport)
   }
 
   /** Ripgrep on one transport's target, resolved once per connection. */
@@ -143,7 +165,13 @@ export class SshSubprocessRuntime extends SubprocessRuntime {
     let cached = this.ripgrep.get(transport)
     if (cached === undefined) {
       cached = resolveRemoteRipgrep({
-        exec: (command) => transport.exec(command),
+        // The helper's `exec` reports a NULL exit code for a signalled command;
+        // the ripgrep probe only asks "did this exit 0", so a null becomes a
+        // definite miss rather than a shape mismatch at the call site.
+        exec: async (command) => {
+          const result = await transport.exec(command)
+          return { ...result, exitCode: result.exitCode ?? -1 }
+        },
         ...(this.config.ripgrepPath === undefined ? {} : { configuredPath: this.config.ripgrepPath }),
         stagedPath: transport.runtimePath('bin', 'rg'),
       }).then((resolved) => resolved?.path)
@@ -154,7 +182,7 @@ export class SshSubprocessRuntime extends SubprocessRuntime {
 
   /** The default transport's ripgrep (for `resolveExecutable`). */
   private async remoteRipgrep(): Promise<string | undefined> {
-    return await this.remoteRipgrepFor(this.connection)
+    return await this.remoteRipgrepFor(this.defaultTransport)
   }
 
   /**
@@ -254,25 +282,84 @@ export class SshSubprocessRuntime extends SubprocessRuntime {
     return { ...request, argv: translated.argv, env }
   }
 
+    /**
+   * Report the terminal platform and default shell ON THE TARGET.
+   *
+   * The host's own `process.platform` says nothing about the machine a terminal
+   * will run on, so the answer comes from one probe over the helper's exec
+   * channel: `uname -s` selects the family and `$SHELL` (falling back to the
+   * passwd entry) names the shell. A probe failure answers `posix` with no
+   * shell rather than guessing a path that may not exist.
+   *
+   * @param signal - cancellation of the probe.
+   * @returns the remote terminal environment.
+   */
+  async terminalEnvironment(signal?: AbortSignal): Promise<SubprocessTerminalEnvironment> {
+    signal?.throwIfAborted()
+    try {
+      const result = await this.connection.exec(
+        'printf %s\\n "$(uname -s 2>/dev/null)" "$SHELL" "$(getent passwd "$(id -un)" 2>/dev/null | cut -d: -f7)"',
+      )
+      const lines = result.stdout.split('\n')
+      const uname = (lines[0] ?? '').trim()
+      const shell = (lines[1] ?? '').trim() || (lines[2] ?? '').trim()
+      const platform: 'posix' | 'windows' = /^(MINGW|MSYS|CYGWIN)/i.test(uname) ? 'windows' : 'posix'
+      return { platform, ...shell === '' ? {} : { defaultShell: shell } }
+    } catch {
+      return { platform: 'posix' }
+    }
+  }
+
   /**
    * Terminal allocation over SSH.
    *
    * The seam declares this unconditionally abstract with no capability probe and
-   * no "unsupported" convention
-   * (`packages/subprocess/subprocess/src/index.ts:139`), so a provider may not
-   * decline it. It is **not implemented in this increment**: a faithful
-   * implementation needs the helper's PTY subsurface (`pty.openpty`, plus
-   * `tcgetpgrp` and `/proc/<pid>/wchan` for the foreground-group facts the
-   * contract wants), and shipping a shell-pipe imitation would misreport
-   * `isatty` and foreground state rather than fail honestly.
+   * no "unsupported" convention, so a provider may not decline it. A faithful
+   * implementation needs a real PTY ON THE TARGET (`pty.openpty`, plus
+   * `tcgetpgrp` and `/proc/<pid>/wchan` for the foreground-group facts); a
+   * shell-pipe imitation would misreport `isatty` and foreground state instead
+   * of failing honestly. The helper owns that PTY and this method is the
+   * client-side façade over its `pty_*` operations.
    *
-   * @throws always, naming what is missing.
+   * The request is assembled lazily: `RemoteTerminalHandle` returns
+   * synchronously with a `done` promise that settles once the helper has
+   * opened the PTY, so a failed allocation surfaces as a failed terminal
+   * rather than as a thrown call.
+   *
+   * @param spec - program, remote cwd, environment, geometry, and grace.
+   * @returns the live terminal handle.
    */
-  async spawnTerminal(): Promise<never> {
-    throw new Error(
-      'subprocess-ssh: spawnTerminal is not implemented yet (the helper PTY subsurface is pending). '
-        + 'Terminal-backed features are unavailable on this connection; ordinary spawns are unaffected.',
-    )
+  async spawnTerminal(spec: SubprocessTerminalSpawnSpec): Promise<SubprocessTerminalHandle> {
+    if (this.disposing) throw new Error('subprocess-ssh: service is disposing')
+    const program = spec.argv[0]
+    if (program === undefined || program.length === 0) {
+      throw new Error('invalid argv: expected a non-empty program name at argv[0]')
+    }
+    if (!Number.isFinite(spec.graceMs) || spec.graceMs <= 0) {
+      throw new Error('subprocess graceMs must be a positive finite number')
+    }
+    if (spec.signal?.aborted === true) {
+      throw new Error(`aborted before spawn: ${String(spec.signal.reason)}`)
+    }
+    // The caller cwd decides the machine exactly as `spawn` does: an
+    // `ssh://<id>/<path>` route (or its local placeholder) runs on that
+    // connection's helper; anything else is not this provider's world.
+    const route = this.router.resolveCwd(spec.cwd)
+    const env = buildChildEnvironment(await this.remoteEnvFor(route.transport), spec.env)
+    const handle = new RemoteTerminalHandle(route.transport, {
+      argv: spec.argv,
+      cwd: route.base,
+      env,
+      rows: spec.rows,
+      cols: spec.cols,
+      terminalType: spec.terminalType,
+      graceMs: spec.graceMs,
+      ...(spec.signal === undefined ? {} : { signal: spec.signal }),
+    })
+    this.live.add(handle)
+    const release = () => void this.live.delete(handle)
+    void handle.done.then(release, release)
+    return handle
   }
 }
 

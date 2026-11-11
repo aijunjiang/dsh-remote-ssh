@@ -34,6 +34,7 @@ dsh plugin --profile web add github:aijunjiang/dsh-remote-ssh
 | **Per-session routing** | A session's working directory decides the machine: `ssh://<id>/<path>` and its local placeholder twin are equivalent; many remotes can run in parallel |
 | **Remote fs/subprocess** (full mode) | `ctx.fs` / `ctx.subprocess` point at the remote host: git, tests, builds, reads and writes happen there |
 | **Agent guidance** (built-in) | Routed sessions declare "which machine am I on" in the runtime context, plus a usage guide, `ssh_exec` / `ssh_route_status`, and `DSH_SSH_*` env vars — no more guessing from paths, no silent "empty project" mirrors |
+| **Remote terminals** | `ctx.subprocess.spawnTerminal` allocates a real PTY on the target (helper `pty_*` ops): interactive shells with job control, resize that reaches the running application, and tree-scoped teardown. Full mode only — GUI-only keeps terminals local |
 | **Credentials stay local** | Passwords and identity keys only ever live under this machine's DSH home |
 
 ---
@@ -77,6 +78,26 @@ Five steps, one flow: add a remote connection, browse the remote host, adopt one
 > on every DSH upgrade — they were already invalidated once by the 0.1.2 → 0.1.5
 > restructure. A build without them still routes sessions and runs remote
 > commands; only these two UI affordances are missing.
+
+---
+
+## Version support
+
+This branch targets **DSH 0.2.x** (verified on `0.2.2-rc.1`).
+
+Two host changes it accounts for:
+
+- **`@deepseek-ai/dsh-invariants` is gone.** The `ssh-gui` companion was an empty
+  check, so the file and its two dependency declarations were removed rather
+  than rewritten; every other export keeps its behaviour. On 0.1.x the extra
+  companion is simply absent — nothing observable changes.
+- **`SubprocessRuntime` gained `terminalEnvironment`.** The provider answers it
+  by probing the TARGET (`uname -s`, `$SHELL`, then the passwd entry) instead of
+  reporting the host's own `process.platform`, which says nothing about the
+  machine a terminal will run on.
+
+The 0.1.x line keeps working; nothing in this branch reads a 0.2-only API at
+module scope.
 
 ---
 
@@ -220,7 +241,7 @@ Environment:
 ## Limitations (honest)
 
 - **GUI-only mode does not move fs/subprocess**: files/commands stay local; `dsh-ssh-routes/...` are placeholder dirs (the agent guide says so).
-- **No PTY yet**: `spawnTerminal` is unavailable on remote connections (helper PTY subsurface pending); ordinary spawns are unaffected.
+- **PTY support** (since this branch): `spawnTerminal` opens a real pseudo-terminal ON THE TARGET through the helper's `pty_*` operations, so `isatty()`, the foreground process group, window resizing and the input-wait fact are answered by the remote kernel rather than imitated over pipes. Foreground inspection needs `/proc/<pid>/wchan`; on a target without it the input-wait fact reports false and activity reports `unknown` rather than guessing.
 - `ssh_exec` calls are serialized per step; run multiple commands inside one call.
 - Remote `read` has no line numbers; window big files with `sed -n`.
 - Remote execution needs the Python helper on the target (auto-deployed to the account home on first use).
