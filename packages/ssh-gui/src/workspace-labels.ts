@@ -44,14 +44,35 @@ export function routedConnectionId(path: string | undefined): string | undefined
   return match === null ? undefined : match[1]
 }
 
-/** Strip any label this module wrote, plus a trailing manual ` · user@host`. */
+/**
+ * Strip every label this module could have written, plus any trailing manual
+ * ` · user@host`, until the title is stable.
+ *
+ * Loops rather than peeling once: a title that already accumulated prefixes
+ * (from a version that trusted the stale record, say) must come back to its
+ * real base instead of keeping the damage. Every pass removes at least one
+ * marker or stops, so this terminates.
+ */
 function baseTitle(title: string, label: string): string {
   let base = title
-  if (base.startsWith(`${REMOTE_MARK} `)) base = base.slice(REMOTE_MARK.length + 1)
-  else if (base.startsWith('🔒 ')) base = base.slice(3)
-  const manual = ` · ${label}`
-  // A title equal to the label alone is all prefix and no name; leave it be.
-  if (base.endsWith(manual) && base.length > manual.length) base = base.slice(0, -manual.length)
+  for (let guard = 0; guard < 8; guard += 1) {
+    const before = base
+    // This module writes `🌐 <label> · <base>`, so the prefix to remove is the
+    // marker AND the label that follows it — peeling only the marker leaves the
+    // label behind, which is what produced `🌐 host · host · name` on a second
+    // boot.
+    const written = `${REMOTE_MARK} ${label} · `
+    if (base.startsWith(written)) base = base.slice(written.length)
+    else if (base.startsWith(`${REMOTE_MARK} `)) base = base.slice(REMOTE_MARK.length + 1)
+    const locked = `🔒 ${label} · `
+    if (base.startsWith(locked)) base = base.slice(locked.length)
+    else if (base.startsWith('🔒 ')) base = base.slice(3)
+    // A hand-written `name · user@host` carries the label at the END.
+    const manual = ` · ${label}`
+    // A title equal to the label alone is all prefix and no name; leave it be.
+    if (base.endsWith(manual) && base.length > manual.length) base = base.slice(0, -manual.length)
+    if (base === before) return base
+  }
   return base
 }
 
@@ -118,9 +139,14 @@ export async function labelRoutedWorkspaces(
   let written = 0
   for (const workspace of registry.list()) {
     const id = typeof workspace.id === 'string' ? workspace.id : undefined
-    const title = typeof workspace.title === 'string'
-      ? workspace.title
-      : typeof workspace.record?.title === 'string' ? workspace.record.title : undefined
+    // The projection can serve a STALE title right after `setTitle` (the entity
+    // updated, the snapshot the list returned did not). Because the label is
+    // rebuilt from whatever string is read here, a stale read stacks another
+    // prefix on every boot — so `baseTitle` strips REPEATEDLY and both spellings
+    // are considered.
+    const stored = typeof workspace.record?.title === 'string' ? workspace.record.title : undefined
+    const live = typeof workspace.title === 'string' ? workspace.title : undefined
+    const title = live ?? stored
     const path = typeof workspace.path === 'string'
       ? workspace.path
       : typeof workspace.record?.path === 'string' ? workspace.record.path : undefined
