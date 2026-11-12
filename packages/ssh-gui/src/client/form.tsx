@@ -11,7 +11,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type { ConnectionView } from './index.ts'
-import { cx, useDialogA11y } from './ui.ts'
+import { cx, useDialogA11y, useWheelContainment } from './ui.ts'
 import {
   AlertIcon,
   CheckIcon,
@@ -164,6 +164,8 @@ export function ConnectionForm({ resolve, test, save, draft, onClose, onSaved }:
   const [autoBusy, setAutoBusy] = useState(false)
 
   const dialogRef = useDialogA11y(true, () => { if (!busy) onClose() })
+  // The form is long enough to scroll; keep that scroll inside the form.
+  const overlayRef = useWheelContainment(true)
   const usernameRef = useRef<HTMLInputElement | null>(null)
   const autoGeneration = useRef(0)
   const lastAutoHost = useRef<string | null>(null)
@@ -355,8 +357,8 @@ export function ConnectionForm({ resolve, test, save, draft, onClose, onSaved }:
   const usernameError = errorOf('username')
 
   return (
-    <div className={styles.overlay} onClick={(event) => { if (event.target === event.currentTarget && !busy) onClose() }}>
-      <div className={styles.form} role="dialog" aria-modal="true" aria-label="新建远程连接" ref={dialogRef}>
+    <div ref={overlayRef} className={styles.overlay} onClick={(event) => { if (event.target === event.currentTarget && !busy) onClose() }}>
+      <div className={styles.form} role="dialog" aria-modal="true" aria-label="新建远程连接" data-dshssh-dialog="" ref={dialogRef}>
         <div className={styles.formHead}>
           <div className={styles.formHeadText}>
             <h3 className={styles.formTitle}>新建远程连接</h3>

@@ -9,10 +9,11 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { ConfigHostView, ConnectionView, WireEntry, WireListing, WireResult } from './index.ts'
 import { ConnectionForm } from './form.tsx'
 import type { ConnectionDraft, ConnectionInputWire, ResolvedSshConfigView } from './form.tsx'
-import { cx, useDialogA11y } from './ui.ts'
+import { cx, useDialogA11y, useWheelContainment } from './ui.ts'
 import {
   AlertIcon,
   CheckIcon,
@@ -234,6 +235,13 @@ export function SshWorkspaceFlow(props: FlowProps & FlowInjected) {
   const folderDialogRef = useDialogA11y(folderDraft !== null, () => { if (!folderBusy) setFolderDraft(null) })
   const deleteDialogRef = useDialogA11y(deleteTarget !== null, () => { if (removingId === null) setDeleteTarget(null) })
   const confirmDialogRef = useDialogA11y(confirmTarget !== null, () => { if (hostPending === null) setConfirmTarget(null) })
+
+  // Each overlay owns the wheel: a gesture inside the dialog scrolls the region
+  // under the cursor and nothing behind it (see useWheelContainment).
+  const dialogOverlayRef = useWheelContainment(open)
+  const folderOverlayRef = useWheelContainment(folderDraft !== null)
+  const deleteOverlayRef = useWheelContainment(deleteTarget !== null)
+  const confirmOverlayRef = useWheelContainment(confirmTarget !== null)
 
   /** List one level, guarding against superseded/closed generations. */
   const loadLevel = async (request: (signal: AbortSignal) => Promise<WireListing>): Promise<void> => {
@@ -594,9 +602,21 @@ export function SshWorkspaceFlow(props: FlowProps & FlowInjected) {
 
   if (!open) return null
 
-  return (
-    <div className={styles.overlay} onClick={(event) => { if (event.target === event.currentTarget) onCancel() }}>
-      <div className={styles.dialog} role="dialog" aria-modal="true" aria-label="选择工作区目录" ref={dialogRef}>
+  // Portal to <body>, exactly as the host's own Modal does.
+  //
+  // This dialog is registered into `sidebar.workspaces.directoryFlow`, so it
+  // renders as a DOM descendant of the sidebar's scroll container
+  // (ui-sidebar's `.scrollArea`, overflow-y: auto). That container carries the
+  // host's own bubbling wheel listener (ui-sidebar/scroll-handoff.ts), which
+  // preventDefaults and scrolls the sidebar itself — so a wheel gesture inside
+  // the dialog moved the sidebar behind it instead of the list under the
+  // cursor. `position: fixed` does not escape that: fixed changes painting, not
+  // the DOM tree the event bubbles through. Rendering into <body> takes the
+  // dialog out of the sidebar's scrolling and stacking context entirely, so no
+  // ancestor listener can claim its wheel or inherit its overflow.
+  return createPortal((
+    <div ref={dialogOverlayRef} className={styles.overlay} onClick={(event) => { if (event.target === event.currentTarget) onCancel() }}>
+      <div className={styles.dialog} role="dialog" aria-modal="true" aria-label="选择工作区目录" data-dshssh-dialog="" ref={dialogRef}>
         <header className={styles.header}>
           <div className={styles.headerText}>
             <h3 className={styles.title}>选择工作区目录</h3>
@@ -1066,8 +1086,8 @@ export function SshWorkspaceFlow(props: FlowProps & FlowInjected) {
       </div>
 
       {folderDraft !== null && (
-        <div className={styles.overlay} onClick={(event) => { if (event.target === event.currentTarget && !folderBusy) setFolderDraft(null) }}>
-          <div className={styles.smallDialog} role="dialog" aria-modal="true" aria-label="新建文件夹" ref={folderDialogRef}>
+        <div ref={folderOverlayRef} className={styles.overlay} onClick={(event) => { if (event.target === event.currentTarget && !folderBusy) setFolderDraft(null) }}>
+          <div className={styles.smallDialog} role="dialog" aria-modal="true" aria-label="新建文件夹" data-dshssh-dialog="" ref={folderDialogRef}>
             <h3 className={styles.formTitle}>新建文件夹</h3>
             <p className={styles.createIn}>
               位置：<span className={cx(styles.mono, styles.createPath)}>{activePath === '' ? '…' : activePath}</span>
@@ -1099,8 +1119,8 @@ export function SshWorkspaceFlow(props: FlowProps & FlowInjected) {
       )}
 
       {deleteTarget !== null && (
-        <div className={styles.overlay} onClick={(event) => { if (event.target === event.currentTarget && removingId === null) setDeleteTarget(null) }}>
-          <div className={styles.smallDialog} role="dialog" aria-modal="true" aria-label="删除远程连接" ref={deleteDialogRef}>
+        <div ref={deleteOverlayRef} className={styles.overlay} onClick={(event) => { if (event.target === event.currentTarget && removingId === null) setDeleteTarget(null) }}>
+          <div className={styles.smallDialog} role="dialog" aria-modal="true" aria-label="删除远程连接" data-dshssh-dialog="" ref={deleteDialogRef}>
             <div className={styles.confirmHead}>
               <span className={styles.confirmIconWrap}><TrashIcon /></span>
               <div>
@@ -1133,8 +1153,8 @@ export function SshWorkspaceFlow(props: FlowProps & FlowInjected) {
       )}
 
       {confirmTarget !== null && (
-        <div className={styles.overlay} onClick={(event) => { if (event.target === event.currentTarget && hostPending === null) setConfirmTarget(null) }}>
-          <div className={styles.smallDialog} role="dialog" aria-modal="true" aria-label="添加 SSH 配置主机" ref={confirmDialogRef}>
+        <div ref={confirmOverlayRef} className={styles.overlay} onClick={(event) => { if (event.target === event.currentTarget && hostPending === null) setConfirmTarget(null) }}>
+          <div className={styles.smallDialog} role="dialog" aria-modal="true" aria-label="添加 SSH 配置主机" data-dshssh-dialog="" ref={confirmDialogRef}>
             <div className={styles.confirmHead}>
               <span className={cx(styles.confirmIconWrap, styles.confirmIconInfo)}><ServerIcon /></span>
               <div>
@@ -1174,5 +1194,5 @@ export function SshWorkspaceFlow(props: FlowProps & FlowInjected) {
         />
       )}
     </div>
-  )
+  ), document.body)
 }

@@ -5,13 +5,15 @@ window.__ModuleLoader__.load({
 		var exports = module.exports;
 		Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
 		let react = require("react");
+		let react_dom = require("react-dom");
 		let react_jsx_runtime = require("react/jsx-runtime");
 		//#region src/client/ui.ts
 		/**
 		* Shared UI utilities for the dsh-ssh client: a class-name joiner and the
 		* dialog behavior every modal reuses — a document-level close stack (Esc
 		* always dismisses the topmost dialog only), a Tab focus trap, initial focus,
-		* and focus restoration. No external focus-management dependency.
+		* focus restoration, and wheel containment. No external focus-management
+		* dependency.
 		*/
 		/** Join truthy class-name fragments; false/null/undefined drop out. */
 		const cx = (...parts) => parts.filter((part) => typeof part === "string" && part !== "").join(" ");
@@ -25,6 +27,118 @@ window.__ModuleLoader__.load({
 		].join(", ");
 		/** Live dialog closers; only the top entry reacts to Esc and Tab. */
 		const stack = [];
+		/** True when this element can scroll on either axis (overflow, not hidden overflow). */
+		function scrollsAlong(style, node) {
+			const scrollable = /(auto|scroll|overlay)/;
+			return scrollable.test(style.overflowY) && node.scrollHeight - node.clientHeight > 1 || scrollable.test(style.overflowX) && node.scrollWidth - node.clientWidth > 1;
+		}
+		/**
+		* The innermost scroll container a gesture over `target` belongs to, never
+		* climbing past `root`. Walks the flat tree, so a shadow boundary inside the
+		* host shell cannot hide one.
+		*/
+		function scrollRegionUnder(target, root) {
+			let node = target;
+			while (node !== null && node !== root) {
+				if (node instanceof HTMLElement && scrollsAlong(getComputedStyle(node), node)) return node;
+				node = node.parentElement ?? (node.getRootNode() instanceof ShadowRoot ? node.getRootNode().host : null);
+				if (node !== null && !root.contains(node) && node !== root) return null;
+			}
+			return null;
+		}
+		/**
+		* Contain wheel scrolling inside one dialog.
+		*
+		* `overscroll-behavior: contain` only stops a region from chaining to its
+		* ancestor once that region is at its end — it does nothing for a gesture that
+		* lands on something that cannot scroll at all (the header, the footer, an
+		* empty pane, a list shorter than its box). Those gestures climb straight out of
+		* the dialog and move the workspace sidebar behind it, which is exactly the
+		* reported bug: nothing under the cursor moved, the page underneath did.
+		*
+		* So the gesture is owned here: cancel the native scroll and drive the
+		* innermost scrollable region under the cursor directly. If no region can
+		* absorb the gesture, nothing moves — the page behind included. Cancelling the
+		* wheel event is also what stops macOS inertia (which keeps firing after the
+		* finger lifts and would otherwise chain out of the dialog later) from reaching
+		* the page.
+		*/
+		function containWheel(element) {
+			const onWheel = (event) => {
+				if (event.ctrlKey || event.metaKey) return;
+				const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? element.clientHeight : 1;
+				let deltaX = event.deltaX * unit;
+				let deltaY = event.deltaY * unit;
+				if (event.shiftKey && deltaY !== 0 && deltaX === 0) {
+					deltaX = deltaY;
+					deltaY = 0;
+				}
+				if (deltaX === 0 && deltaY === 0) return;
+				event.preventDefault();
+				const region = scrollRegionUnder(event.target, element);
+				if (region === null) return;
+				if (region.scrollHeight - region.clientHeight > 1) region.scrollTop += deltaY;
+				if (region.scrollWidth - region.clientWidth > 1) region.scrollLeft += deltaX;
+			};
+			element.addEventListener("wheel", onWheel, {
+				passive: false,
+				capture: true
+			});
+			return () => {
+				element.removeEventListener("wheel", onWheel, { capture: true });
+			};
+		}
+		/**
+		* Wheel containment backstop for a dialog's overlay: whatever the overlay
+		* contains is the only thing a wheel gesture may scroll. Two layers, because
+		* neither is sufficient alone —
+		*
+		*  - `overscroll-behavior: contain` on the overlay's scrollable descendants
+		*    keeps a region that IS at its end from chaining out;
+		*  - a capture-phase wheel handler owns the gesture itself, so a gesture over
+		*    a non-scrollable part of the dialog cannot escape the overlay either.
+		*
+		* Scrollable regions inside a nested dialog stay uncontained (that dialog's
+		* own overlay contains them), so stacking two dialogs does not freeze the inner
+		* one's lists.
+		*/
+		function useWheelContainment(active) {
+			const ref = (0, react.useRef)(null);
+			(0, react.useEffect)(() => {
+				if (!active) return;
+				const overlay = ref.current;
+				if (overlay === null) return;
+				const touched = [];
+				const containScrollable = () => {
+					const own = overlay.querySelector(":scope > [data-dshssh-dialog]");
+					if (own === null) return;
+					for (const node of own.querySelectorAll("*")) {
+						if (!scrollsAlong(getComputedStyle(node), node)) continue;
+						if (node.style.overscrollBehavior.includes("contain")) continue;
+						touched.push({
+							node,
+							value: node.style.overscrollBehavior
+						});
+						node.style.overscrollBehavior = "contain";
+					}
+				};
+				containScrollable();
+				const observer = new MutationObserver(() => {
+					containScrollable();
+				});
+				observer.observe(overlay, {
+					childList: true,
+					subtree: true
+				});
+				const releaseWheel = containWheel(overlay);
+				return () => {
+					observer.disconnect();
+					releaseWheel();
+					for (const entry of touched) entry.node.style.overscrollBehavior = entry.value;
+				};
+			}, [active]);
+			return ref;
+		}
 		/**
 		* Dialog accessibility behavior for one modal while `active`.
 		* Returns the ref to place on the dialog element.
@@ -478,6 +592,7 @@ window.__ModuleLoader__.load({
 			const dialogRef = useDialogA11y(true, () => {
 				if (!busy) onClose();
 			});
+			const overlayRef = useWheelContainment(true);
 			const usernameRef = (0, react.useRef)(null);
 			const autoGeneration = (0, react.useRef)(0);
 			const lastAutoHost = (0, react.useRef)(null);
@@ -692,6 +807,7 @@ window.__ModuleLoader__.load({
 			const portError = errorOf("port");
 			const usernameError = errorOf("username");
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+				ref: overlayRef,
 				className: flow_module_css_default.overlay,
 				onClick: (event) => {
 					if (event.target === event.currentTarget && !busy) onClose();
@@ -701,6 +817,7 @@ window.__ModuleLoader__.load({
 					role: "dialog",
 					"aria-modal": "true",
 					"aria-label": "新建远程连接",
+					"data-dshssh-dialog": "",
 					ref: dialogRef,
 					children: [
 						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
@@ -1197,6 +1314,10 @@ window.__ModuleLoader__.load({
 			const confirmDialogRef = useDialogA11y(confirmTarget !== null, () => {
 				if (hostPending === null) setConfirmTarget(null);
 			});
+			const dialogOverlayRef = useWheelContainment(open);
+			const folderOverlayRef = useWheelContainment(folderDraft !== null);
+			const deleteOverlayRef = useWheelContainment(deleteTarget !== null);
+			const confirmOverlayRef = useWheelContainment(confirmTarget !== null);
 			/** List one level, guarding against superseded/closed generations. */
 			const loadLevel = async (request) => {
 				const current = generation.current += 1;
@@ -1573,7 +1694,8 @@ window.__ModuleLoader__.load({
 			/** The translated remote failure for the right pane, when there is one. */
 			const remoteFailure = mode.kind === "remote" && pane.error !== null ? describeRemoteFailure(pane.error) : null;
 			if (!open) return null;
-			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+			return (0, react_dom.createPortal)(/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				ref: dialogOverlayRef,
 				className: flow_module_css_default.overlay,
 				onClick: (event) => {
 					if (event.target === event.currentTarget) onCancel();
@@ -1584,6 +1706,7 @@ window.__ModuleLoader__.load({
 						role: "dialog",
 						"aria-modal": "true",
 						"aria-label": "选择工作区目录",
+						"data-dshssh-dialog": "",
 						ref: dialogRef,
 						children: [
 							/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("header", {
@@ -2193,6 +2316,7 @@ window.__ModuleLoader__.load({
 						]
 					}),
 					folderDraft !== null && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+						ref: folderOverlayRef,
 						className: flow_module_css_default.overlay,
 						onClick: (event) => {
 							if (event.target === event.currentTarget && !folderBusy) setFolderDraft(null);
@@ -2202,6 +2326,7 @@ window.__ModuleLoader__.load({
 							role: "dialog",
 							"aria-modal": "true",
 							"aria-label": "新建文件夹",
+							"data-dshssh-dialog": "",
 							ref: folderDialogRef,
 							children: [
 								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h3", {
@@ -2260,6 +2385,7 @@ window.__ModuleLoader__.load({
 						})
 					}),
 					deleteTarget !== null && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+						ref: deleteOverlayRef,
 						className: flow_module_css_default.overlay,
 						onClick: (event) => {
 							if (event.target === event.currentTarget && removingId === null) setDeleteTarget(null);
@@ -2269,6 +2395,7 @@ window.__ModuleLoader__.load({
 							role: "dialog",
 							"aria-modal": "true",
 							"aria-label": "删除远程连接",
+							"data-dshssh-dialog": "",
 							ref: deleteDialogRef,
 							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 								className: flow_module_css_default.confirmHead,
@@ -2333,6 +2460,7 @@ window.__ModuleLoader__.load({
 						})
 					}),
 					confirmTarget !== null && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+						ref: confirmOverlayRef,
 						className: flow_module_css_default.overlay,
 						onClick: (event) => {
 							if (event.target === event.currentTarget && hostPending === null) setConfirmTarget(null);
@@ -2342,6 +2470,7 @@ window.__ModuleLoader__.load({
 							role: "dialog",
 							"aria-modal": "true",
 							"aria-label": "添加 SSH 配置主机",
+							"data-dshssh-dialog": "",
 							ref: confirmDialogRef,
 							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 								className: flow_module_css_default.confirmHead,
@@ -2408,7 +2537,7 @@ window.__ModuleLoader__.load({
 						}
 					})
 				]
-			});
+			}), document.body);
 		}
 		//#endregion
 		//#region src/client/index.ts

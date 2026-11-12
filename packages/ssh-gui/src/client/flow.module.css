@@ -93,11 +93,11 @@
   position: fixed;
   inset: 0;
   z-index: 1000;
-  /* The dialog covers the viewport, but wheel scrolling still chains to
-     ancestors: an inner region at its boundary hands the rest of the gesture
-     to the page behind, which here is the workspace sidebar — the list under
-     the cursor stops and something else moves instead. `contain` cuts that
-     chain at the overlay, so a scroll that leaves the dialog goes nowhere. */
+  /* Backstop for the wheel containment in ui.ts (useWheelContainment): the
+     overlay is not itself scrollable, but `contain` also stops any scroll it
+     would relay. The real fix is the capture-phase wheel handler, which owns
+     the gesture so a wheel over a non-scrollable part of the dialog (header,
+     footer, an empty pane) cannot chain into the workspace sidebar behind it. */
   overscroll-behavior: contain;
   display: flex;
   align-items: center;
@@ -282,8 +282,8 @@
   border-right: 1px solid var(--dshssh-line);
   background: var(--dshssh-surface-2);
   overflow-y: auto;
-  /* Same containment as the directory list: reaching this pane's end must not
-     scroll the workspace sidebar behind the dialog. */
+  /* Reaching this pane's end stops there (wheel containment is owned by the
+     overlay — see useWheelContainment). */
   overscroll-behavior: contain;
 }
 

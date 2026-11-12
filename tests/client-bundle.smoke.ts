@@ -39,9 +39,11 @@ assert.ok(bundle.includes('//# sourceMappingURL=client.js.map'), 'the bundle mus
 
 const requires = new Set<string>()
 for (const match of bundle.matchAll(/require\("([^"]+)"\)/g)) requires.add(match[1])
+// The dialog portals to <body> (host Modal parity), so the bundle also asks
+// the module table for `react-dom` — a PLATFORM_MODULES row the shell shares.
 assert.deepEqual(
   [...requires].sort(),
-  ['react', 'react/jsx-runtime'],
+  ['react', 'react-dom', 'react/jsx-runtime'],
   'the only runtime externals may be the platform module-table rows this bundle requests',
 )
 
@@ -108,6 +110,34 @@ assert.match(ruleOf('main'), /min-height:0/, '.main must be a bounded flex colum
 assert.match(ruleOf('browser'), /overflow-y:auto/, '.browser must be the scrolling region')
 assert.doesNotMatch(ruleOf('browser'), /min-height:200px/, '.browser must not keep a floor taller than the space it may shrink into')
 assert.match(ruleOf('toolbar'), /flex:none/, 'the breadcrumb bar must not shrink away when the list is long')
+
+// -- (e) the dialog portals out of the sidebar ----------------------------
+//
+// The flow is registered into `sidebar.workspaces.directoryFlow`, so an
+// in-place render makes the dialog a DOM descendant of ui-sidebar's
+// `.scrollArea` (overflow-y: auto). That container carries the host's own
+// bubbling wheel listener (ui-sidebar/scroll-handoff.ts), which preventDefaults
+// and scrolls the sidebar itself — a wheel gesture inside the dialog moved the
+// sidebar behind it instead of the list under the cursor. `position: fixed`
+// does not help: fixed changes painting, not the tree events bubble through.
+// The fix renders the overlay into <body>, like the host's own Modal. Pin both
+// halves so a future edit cannot quietly drop back to in-place rendering.
+assert.match(bundle, /react-dom/, 'the bundle must pull react-dom from the module table to portal the dialog')
+// The call is emitted as `(0, react_dom.createPortal)( <JSX tree> ), document.body)`.
+// Anchor on both ends: the helper reference, and the portal target that closes
+// the whole tree. `document.body` alone is not enough — the dialog's own focus
+// code compares against it (`current === document.body`), so a loose match
+// would keep passing after the portal is removed.
+assert.match(
+  bundle,
+  /(?:react_dom|createPortal)\)\(/,
+  'the directory dialog must render through createPortal',
+)
+assert.match(
+  bundle,
+  /\}\)\s*,\s*document\.body\)/,
+  'the directory dialog must portal to <body>, out of the sidebar scroll container',
+)
 
 // -- the source map exists and is a valid v3 object -----------------------
 
