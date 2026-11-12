@@ -53,24 +53,25 @@ export function routedConnectionId(path: string | undefined): string | undefined
  * real base instead of keeping the damage. Every pass removes at least one
  * marker or stops, so this terminates.
  */
-function baseTitle(title: string, label: string): string {
+function baseTitle(title: string): string {
   let base = title
+  // Strip every prefix that LOOKS like one of ours, not merely the one this
+  // connection would write today.
+  //
+  // The old form peeled only an exact `<marker> <this label> · ` match and then
+  // fell back to removing the marker alone, which left an unrelated host behind:
+  // a workspace labelled by the OLD harness while the path now routes through a
+  // different connection came out as `🌐 newHost · oldHost · name`, and each boot
+  // added another. The prefix is a marker, a host-shaped token, and a separator —
+  // so that whole shape goes, whatever host it names.
+  const PREFIX = new RegExp(`^(?:${REMOTE_MARK}|🔒)\\s+[^·]*·\\s+`)
   for (let guard = 0; guard < 8; guard += 1) {
     const before = base
-    // This module writes `🌐 <label> · <base>`, so the prefix to remove is the
-    // marker AND the label that follows it — peeling only the marker leaves the
-    // label behind, which is what produced `🌐 host · host · name` on a second
-    // boot.
-    const written = `${REMOTE_MARK} ${label} · `
-    if (base.startsWith(written)) base = base.slice(written.length)
-    else if (base.startsWith(`${REMOTE_MARK} `)) base = base.slice(REMOTE_MARK.length + 1)
-    const locked = `🔒 ${label} · `
-    if (base.startsWith(locked)) base = base.slice(locked.length)
-    else if (base.startsWith('🔒 ')) base = base.slice(3)
-    // A hand-written `name · user@host` carries the label at the END.
-    const manual = ` · ${label}`
-    // A title equal to the label alone is all prefix and no name; leave it be.
-    if (base.endsWith(manual) && base.length > manual.length) base = base.slice(0, -manual.length)
+    base = base.replace(PREFIX, '')
+    // A hand-written `name · user@host` carries the host at the END. Only an
+    // `user@host` / `host` shaped tail qualifies, so a title that legitimately
+    // contains ` · ` keeps it.
+    base = base.replace(/\s+·\s+[A-Za-z0-9_.-]+@[A-Za-z0-9_.-]+$/, '')
     if (base === before) return base
   }
   return base
@@ -154,8 +155,12 @@ export async function labelRoutedWorkspaces(
 
     const connectionId = routedConnectionId(path)
     if (connectionId === undefined) continue
-    const label = labelOf.get(connectionId) ?? connectionId
-    const after = `${REMOTE_MARK} ${label} · ${baseTitle(title, label)}`
+    // A route whose connection record is gone still tells the reader something
+    // useful: it IS remote, and which route id it points at. Printing the bare
+    // id as if it were a host would be worse than saying so — `🌐 c30 · name`
+    // reads like a machine called "c30".
+    const label = labelOf.get(connectionId) ?? `连接 ${connectionId}`
+    const after = `${REMOTE_MARK} ${label} · ${baseTitle(title)}`
     if (after === title) continue
     plan.push({ id, before: title, after })
     if (options.apply && typeof workspace.setTitle === 'function') {
