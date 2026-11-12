@@ -93,6 +93,12 @@
   position: fixed;
   inset: 0;
   z-index: 1000;
+  /* The dialog covers the viewport, but wheel scrolling still chains to
+     ancestors: an inner region at its boundary hands the rest of the gesture
+     to the page behind, which here is the workspace sidebar — the list under
+     the cursor stops and something else moves instead. `contain` cuts that
+     chain at the overlay, so a scroll that leaves the dialog goes nowhere. */
+  overscroll-behavior: contain;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -276,6 +282,9 @@
   border-right: 1px solid var(--dshssh-line);
   background: var(--dshssh-surface-2);
   overflow-y: auto;
+  /* Same containment as the directory list: reaching this pane's end must not
+     scroll the workspace sidebar behind the dialog. */
+  overscroll-behavior: contain;
 }
 
 .main {
@@ -1032,6 +1041,9 @@
   width: min(520px, 100%);
   max-height: calc(100vh - 48px);
   overflow-y: auto;
+  /* A nested dialog scrolls on its own; reaching its end must not continue
+     into the pane behind it. */
+  overscroll-behavior: contain;
   border-radius: 12px;
   background: var(--dshssh-surface);
   color: var(--dshssh-fg);

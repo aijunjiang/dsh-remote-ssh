@@ -275,8 +275,8 @@ window.__ModuleLoader__.load({
 			});
 		}
 		//#endregion
-		//#region \0dsh-css:C:\Users\Administrator\Documents\deepseek-harness\packages\remote\ssh-gui\src\client\flow.module.css.mjs
-		const css = ".WK9d7G_overlay{--dshssh-accent:var(--color-primary,var(--accent,var(--primary,#4a6cf7)));--dshssh-accent-fg:#fff;--dshssh-surface:var(--color-bg-elevated,var(--background,var(--card,#17181c)));--dshssh-fg:var(--color-fg,var(--foreground,#e8e9ec));--dshssh-danger:var(--color-danger,var(--destructive,#e5534b));--dshssh-success:var(--color-success,var(--success,#3fb950));--dshssh-scrim:#090a0d94;--dshssh-shadow:0 24px 64px #00000080;--dshssh-surface-2:color-mix(in srgb, var(--dshssh-fg) 3%, var(--dshssh-surface));--dshssh-surface-3:color-mix(in srgb, var(--dshssh-fg) 7%, var(--dshssh-surface));--dshssh-surface-inset:color-mix(in srgb, black 10%, var(--dshssh-surface));--dshssh-line:color-mix(in srgb, var(--dshssh-fg) 8%, var(--dshssh-surface));--dshssh-border:color-mix(in srgb, var(--dshssh-fg) 14%, var(--dshssh-surface));--dshssh-border-strong:color-mix(in srgb, var(--dshssh-fg) 26%, var(--dshssh-surface));--dshssh-fg-muted:color-mix(in srgb, var(--dshssh-fg) 60%, var(--dshssh-surface));--dshssh-fg-subtle:color-mix(in srgb, var(--dshssh-fg) 38%, var(--dshssh-surface));--dshssh-accent-soft:color-mix(in srgb, var(--dshssh-accent) 13%, var(--dshssh-surface));--dshssh-danger-soft:color-mix(in srgb, var(--dshssh-danger) 12%, var(--dshssh-surface));--dshssh-success-soft:color-mix(in srgb, var(--dshssh-success) 12%, var(--dshssh-surface));--dshssh-danger-text:color-mix(in srgb, var(--dshssh-danger) 55%, var(--dshssh-fg));--dshssh-success-text:color-mix(in srgb, var(--dshssh-success) 45%, var(--dshssh-fg))}@media (prefers-color-scheme:light){.WK9d7G_overlay{--dshssh-accent:var(--color-primary,var(--accent,var(--primary,#3b5bdb)));--dshssh-surface:var(--color-bg-elevated,var(--background,var(--card,#fff)));--dshssh-fg:var(--color-fg,var(--foreground,#21242a));--dshssh-danger:var(--color-danger,var(--destructive,#c9352f));--dshssh-success:var(--color-success,var(--success,#157f37));--dshssh-scrim:#0f111557;--dshssh-shadow:0 24px 64px #0f111533;--dshssh-surface-2:color-mix(in srgb, var(--dshssh-fg) 3%, var(--dshssh-surface));--dshssh-surface-3:color-mix(in srgb, var(--dshssh-fg) 7%, var(--dshssh-surface));--dshssh-surface-inset:color-mix(in srgb, black 6%, var(--dshssh-surface));--dshssh-line:color-mix(in srgb, var(--dshssh-fg) 8%, var(--dshssh-surface));--dshssh-border:color-mix(in srgb, var(--dshssh-fg) 14%, var(--dshssh-surface));--dshssh-border-strong:color-mix(in srgb, var(--dshssh-fg) 26%, var(--dshssh-surface));--dshssh-fg-muted:color-mix(in srgb, var(--dshssh-fg) 60%, var(--dshssh-surface));--dshssh-fg-subtle:color-mix(in srgb, var(--dshssh-fg) 38%, var(--dshssh-surface));--dshssh-accent-soft:color-mix(in srgb, var(--dshssh-accent) 11%, var(--dshssh-surface));--dshssh-danger-soft:color-mix(in srgb, var(--dshssh-danger) 10%, var(--dshssh-surface));--dshssh-success-soft:color-mix(in srgb, var(--dshssh-success) 10%, var(--dshssh-surface));--dshssh-danger-text:color-mix(in srgb, var(--dshssh-danger) 55%, var(--dshssh-fg));--dshssh-success-text:color-mix(in srgb, var(--dshssh-success) 45%, var(--dshssh-fg))}}.WK9d7G_overlay{z-index:1000;background:var(--dshssh-scrim);font-family:var(--font-sans,ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", Roboto, \"PingFang SC\", \"Microsoft YaHei\", sans-serif);justify-content:center;align-items:center;padding:24px;display:flex;position:fixed;inset:0}.WK9d7G_overlay button,.WK9d7G_overlay input{font-family:inherit}.WK9d7G_overlay :focus-visible{outline:2px solid var(--dshssh-accent);outline-offset:1px}.WK9d7G_gap{flex:auto}.WK9d7G_mono{font-family:var(--font-mono,ui-monospace, \"SF Mono\", \"Cascadia Code\", Consolas, monospace)}.WK9d7G_spin{animation:.8s linear infinite WK9d7G_dshssh-rotate}@keyframes WK9d7G_dshssh-rotate{to{transform:rotate(360deg)}}@media (prefers-reduced-motion:reduce){.WK9d7G_spin{animation:none}}.WK9d7G_button{border:1px solid var(--dshssh-border);color:var(--dshssh-fg);cursor:pointer;white-space:nowrap;background:0 0;border-radius:7px;justify-content:center;align-items:center;gap:6px;padding:5px 13px;font-size:12.5px;font-weight:500;line-height:1.4;display:inline-flex}.WK9d7G_button svg{flex:none}.WK9d7G_button:hover:not(:disabled){background:var(--dshssh-surface-3);border-color:var(--dshssh-border-strong)}.WK9d7G_primary{background:var(--dshssh-accent);border-color:var(--dshssh-accent);color:var(--dshssh-accent-fg)}.WK9d7G_primary:hover:not(:disabled){background:color-mix(in srgb, var(--dshssh-accent) 85%, #fff);border-color:color-mix(in srgb, var(--dshssh-accent) 85%, #fff)}.WK9d7G_danger{background:var(--dshssh-danger);border-color:var(--dshssh-danger);color:#fff}.WK9d7G_danger:hover:not(:disabled){background:color-mix(in srgb, var(--dshssh-danger) 82%, #fff);border-color:color-mix(in srgb, var(--dshssh-danger) 82%, #fff)}.WK9d7G_button:disabled{opacity:.5;cursor:default}.WK9d7G_iconButton{width:28px;height:28px;color:var(--dshssh-fg-muted);cursor:pointer;background:0 0;border:none;border-radius:6px;flex:none;justify-content:center;align-items:center;display:inline-flex}.WK9d7G_iconButton:hover:not(:disabled){background:var(--dshssh-surface-3);color:var(--dshssh-fg)}.WK9d7G_iconButton:disabled{opacity:.45;cursor:default}.WK9d7G_dialog{background:var(--dshssh-surface);width:min(920px,100%);height:min(620px,100vh - 48px);color:var(--dshssh-fg);border:1px solid var(--dshssh-border);box-shadow:var(--dshssh-shadow);border-radius:12px;flex-direction:column;font-size:13px;display:flex;overflow:hidden}.WK9d7G_header{align-items:center;gap:10px;padding:14px 16px 10px;display:flex}.WK9d7G_headerText{flex:auto;min-width:0}.WK9d7G_title{margin:0;font-size:15px;font-weight:600;line-height:1.35}.WK9d7G_subtitle{color:var(--dshssh-fg-muted);text-overflow:ellipsis;white-space:nowrap;margin:2px 0 0;font-size:12px;overflow:hidden}.WK9d7G_body{flex:auto;min-height:0;display:flex}.WK9d7G_sidebar{border-right:1px solid var(--dshssh-line);background:var(--dshssh-surface-2);flex-direction:column;flex:none;width:268px;padding:10px;display:flex;overflow-y:auto}.WK9d7G_main{flex-direction:column;flex:auto;min-height:0;min-width:0;display:flex}.WK9d7G_sidebarSection{flex-direction:column;display:flex}.WK9d7G_sidebarSection+.WK9d7G_sidebarSection{border-top:1px solid var(--dshssh-line);margin-top:10px;padding-top:10px}.WK9d7G_sidebarAdd{background:var(--dshssh-accent);width:30px;height:30px;color:var(--dshssh-accent-fg);cursor:pointer;border:none;border-radius:50%;flex:none;justify-content:center;align-items:center;margin-top:10px;margin-left:auto;padding:0;display:inline-flex;position:sticky;bottom:4px;box-shadow:0 4px 12px #00000047}.WK9d7G_sidebarAdd:hover{filter:brightness(1.1)}.WK9d7G_sidebarTitle{color:var(--dshssh-fg-subtle);letter-spacing:.08em;text-transform:uppercase;align-items:center;gap:6px;margin:0 0 4px;padding:0 2px;font-size:10.5px;font-weight:600;display:flex}.WK9d7G_sidebarCount{background:var(--dshssh-surface-3);color:var(--dshssh-fg-muted);border-radius:8px;padding:0 6px;font-size:11px;font-weight:600;line-height:17px}.WK9d7G_sideError{background:var(--dshssh-danger-soft);border:1px solid color-mix(in srgb, var(--dshssh-danger) 28%, transparent);border-radius:8px;flex-direction:column;align-items:flex-start;gap:6px;padding:8px 10px;display:flex}.WK9d7G_sideErrorText{color:var(--dshssh-danger-text);overflow-wrap:anywhere;margin:0;font-size:12px}.WK9d7G_sideEmpty{flex-direction:column;align-items:flex-start;gap:3px;padding:6px 2px 4px;display:flex}.WK9d7G_sideEmptyIcon{color:var(--dshssh-fg-subtle);margin-bottom:2px}.WK9d7G_sideEmptyTitle{color:var(--dshssh-fg);margin:0;font-size:12.5px;font-weight:600}.WK9d7G_sideEmptyText{color:var(--dshssh-fg-muted);margin:0;font-size:12px;line-height:1.5}.WK9d7G_hostWorking{color:var(--dshssh-fg-muted);align-items:center;gap:5px;font-size:12px;display:inline-flex}.WK9d7G_hostSpinner{width:12px;height:12px;color:var(--dshssh-accent)}.WK9d7G_hostErrorText{color:var(--dshssh-danger-text);overflow-wrap:anywhere;font-size:12px;line-height:1.45}.WK9d7G_toolbar{flex:none;border-top:1px solid var(--dshssh-line);border-bottom:1px solid var(--dshssh-line);background:var(--dshssh-surface-2);align-items:center;gap:8px;min-height:36px;padding:5px 16px;display:flex}.WK9d7G_crumbs{flex-wrap:wrap;flex:auto;align-items:center;gap:2px;min-width:0;font-size:12px;display:flex}.WK9d7G_crumb{color:var(--dshssh-accent);cursor:pointer;text-overflow:ellipsis;white-space:nowrap;background:0 0;border:none;border-radius:4px;max-width:22ch;padding:2px 5px;font-size:12px;overflow:hidden}.WK9d7G_crumb:hover:not(:disabled){background:var(--dshssh-surface-3)}.WK9d7G_crumb:disabled{color:var(--dshssh-fg-subtle);cursor:default}.WK9d7G_crumbStep{align-items:center;display:inline-flex}.WK9d7G_crumbSep{color:var(--dshssh-fg-subtle);padding:0 1px}.WK9d7G_crumbCurrent{color:var(--dshssh-fg);text-overflow:ellipsis;white-space:nowrap;max-width:44ch;padding:2px 5px;font-weight:600;overflow:hidden}.WK9d7G_toolbarActions{flex:none;align-items:center;gap:4px;display:flex}.WK9d7G_toolButton{width:28px;height:28px;color:var(--dshssh-fg-muted);cursor:pointer;background:0 0;border:none;border-radius:6px;justify-content:center;align-items:center;display:inline-flex;position:relative}.WK9d7G_toolButtonText{border:1px solid var(--dshssh-border);width:auto;color:var(--dshssh-fg);gap:5px;padding:0 9px;font-size:12px;font-weight:500}.WK9d7G_toolButton:hover:not(:disabled):not(.WK9d7G_toolButtonOn){background:var(--dshssh-surface-3);color:var(--dshssh-fg)}.WK9d7G_toolButton:disabled{opacity:.45;cursor:default}.WK9d7G_toolButtonOn{background:var(--dshssh-accent-soft);color:var(--dshssh-accent)}.WK9d7G_countBadge{background:var(--dshssh-accent);min-width:14px;height:14px;color:var(--dshssh-accent-fg);text-align:center;border-radius:7px;padding:0 3px;font-size:10px;font-weight:600;line-height:14px;position:absolute;top:-3px;right:-5px}.WK9d7G_browser{flex:auto;min-height:0;padding:6px 10px 8px 8px;overflow-y:auto;overscroll-behavior:contain}.WK9d7G_browserBusy .WK9d7G_entryList{opacity:.55;pointer-events:none}.WK9d7G_entryList{flex-direction:column;gap:1px;margin:0;padding:0;list-style:none;display:flex}.WK9d7G_entry{width:100%;color:var(--dshssh-fg);text-align:left;cursor:pointer;background:0 0;border:none;border-radius:7px;align-items:center;gap:8px;padding:6px 10px;font-size:13px;display:flex}.WK9d7G_entry:hover{background:var(--dshssh-surface-3)}.WK9d7G_entryIcon{color:var(--dshssh-fg-muted);flex:none}.WK9d7G_entryName{text-overflow:ellipsis;white-space:nowrap;flex:auto;min-width:0;overflow:hidden}.WK9d7G_entryHidden .WK9d7G_entryName,.WK9d7G_entryHidden .WK9d7G_entryIcon{opacity:.65}.WK9d7G_entryChevron{color:var(--dshssh-fg-subtle);opacity:0;flex:none;transition:opacity .12s}.WK9d7G_entry:hover .WK9d7G_entryChevron,.WK9d7G_entry:focus-visible .WK9d7G_entryChevron{opacity:1}.WK9d7G_truncated{color:var(--dshssh-fg-subtle);margin:6px 4px 0;font-size:12px}.WK9d7G_skeletons{flex-direction:column;gap:10px;padding:10px 6px;display:flex}.WK9d7G_skeleton{background:var(--dshssh-surface-3);border-radius:6px;height:12px;animation:1.4s ease-in-out infinite WK9d7G_dshssh-pulse}@keyframes WK9d7G_dshssh-pulse{0%,to{opacity:.45}50%{opacity:.9}}@media (prefers-reduced-motion:reduce){.WK9d7G_skeleton{opacity:.6;animation:none}}.WK9d7G_errorPanel{background:var(--dshssh-danger-soft);border:1px solid color-mix(in srgb, var(--dshssh-danger) 28%, transparent);border-radius:8px;align-items:flex-start;gap:10px;margin:10px 6px;padding:10px 12px;display:flex}.WK9d7G_errorIcon{color:var(--dshssh-danger-text);flex:none;margin-top:1px}.WK9d7G_errorBody{flex:auto;min-width:0}.WK9d7G_errorActions{flex-direction:column;flex:none;align-self:center;align-items:stretch;gap:6px;display:flex}.WK9d7G_errorTitle{color:var(--dshssh-danger-text);margin:0;font-size:12.5px;font-weight:600}.WK9d7G_errorText{color:var(--dshssh-fg-muted);overflow-wrap:anywhere;margin:2px 0 0;font-size:12px}.WK9d7G_retryButton{border:1px solid var(--dshssh-border);background:var(--dshssh-surface);color:var(--dshssh-fg);cursor:pointer;border-radius:6px;flex:none;align-items:center;gap:5px;padding:3px 9px;font-size:12px;display:inline-flex}.WK9d7G_retryButton:hover{background:var(--dshssh-surface-3)}.WK9d7G_emptyState{text-align:center;flex-direction:column;align-items:center;gap:4px;margin:auto;padding:28px 16px;display:flex}.WK9d7G_emptyIcon{color:var(--dshssh-fg-subtle);margin-bottom:4px}.WK9d7G_emptyTitle{color:var(--dshssh-fg);margin:0;font-size:13px;font-weight:600}.WK9d7G_emptyText{color:var(--dshssh-fg-muted);margin:0;font-size:12px}.WK9d7G_connectionList{flex-direction:column;gap:2px;margin:0;padding:0;list-style:none;display:flex}.WK9d7G_connectionItem{border-radius:8px;align-items:stretch;gap:2px;display:flex}.WK9d7G_connectionItem:hover:not(.WK9d7G_connectionItemActive){background:color-mix(in srgb, var(--dshssh-fg) 4%, transparent)}.WK9d7G_connectionItemActive{background:var(--dshssh-accent-soft)}.WK9d7G_connectionMain{min-width:0;color:var(--dshssh-fg);font-size:inherit;text-align:left;cursor:pointer;background:0 0;border:none;border-radius:7px;flex:auto;align-items:center;gap:10px;padding:5px 9px;display:flex}.WK9d7G_connectionIcon{color:var(--dshssh-fg-muted);flex:none}.WK9d7G_connectionItemActive .WK9d7G_connectionIcon{color:var(--dshssh-accent)}.WK9d7G_connectionInfo{flex-direction:column;flex:auto;gap:1px;min-width:0;display:flex}.WK9d7G_connectionLabel{text-overflow:ellipsis;white-space:nowrap;font-size:13px;font-weight:600;overflow:hidden}.WK9d7G_connectionDetail{color:var(--dshssh-fg-muted);align-items:center;gap:5px;min-width:0;font-size:11.5px;display:flex}.WK9d7G_connectionEndpoint{text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.WK9d7G_badge{background:color-mix(in srgb, var(--dshssh-fg) 5%, transparent);height:15px;color:var(--dshssh-fg-subtle);border:none;border-radius:4px;flex:none;align-items:center;gap:3px;padding:0 5px;font-size:10.5px;font-weight:500;line-height:14px;display:inline-flex}.WK9d7G_connectionItemActive .WK9d7G_badge{background:color-mix(in srgb, var(--dshssh-surface) 55%, transparent)}.WK9d7G_badge svg{width:11px;height:11px}.WK9d7G_badgeAdded{background:var(--dshssh-success-soft);color:var(--dshssh-success-text)}.WK9d7G_connectionRemove{width:30px;color:var(--dshssh-fg-subtle);cursor:pointer;opacity:0;background:0 0;border:none;border-radius:7px;flex:none;justify-content:center;align-items:center;transition:opacity .12s;display:inline-flex}.WK9d7G_connectionItem:hover .WK9d7G_connectionRemove,.WK9d7G_connectionRemove:focus-visible,.WK9d7G_connectionItemActive .WK9d7G_connectionRemove{opacity:1}.WK9d7G_connectionRemove:hover{color:var(--dshssh-danger-text);background:var(--dshssh-danger-soft)}@media (hover:none){.WK9d7G_connectionRemove{opacity:1}}.WK9d7G_skeletonRow{align-items:center;gap:10px;padding:10px 6px;display:flex}.WK9d7G_skeletonDot{background:var(--dshssh-surface-3);border-radius:5px;flex:none;width:16px;height:16px;animation:1.4s ease-in-out infinite WK9d7G_dshssh-pulse}.WK9d7G_skeletonLines{flex-direction:column;flex:auto;gap:6px;display:flex}.WK9d7G_skeletonLine{background:var(--dshssh-surface-3);border-radius:5px;height:9px;animation:1.4s ease-in-out infinite WK9d7G_dshssh-pulse}.WK9d7G_footer{border-top:1px solid var(--dshssh-line);align-items:center;gap:8px;padding:12px 16px 14px;display:flex}.WK9d7G_smallDialog,.WK9d7G_form{background:var(--dshssh-surface);width:min(520px,100%);max-height:calc(100vh - 48px);color:var(--dshssh-fg);border:1px solid var(--dshssh-border);box-shadow:var(--dshssh-shadow);border-radius:12px;flex-direction:column;gap:12px;padding:16px 18px;font-size:13px;display:flex;overflow-y:auto}.WK9d7G_form{width:min(560px,100%)}.WK9d7G_formTitle{margin:0;font-size:14px;font-weight:600}.WK9d7G_formSub{color:var(--dshssh-fg-muted);margin:2px 0 0;font-size:12px}.WK9d7G_formHead{align-items:flex-start;gap:10px;display:flex}.WK9d7G_formHeadText{flex:auto;min-width:0}.WK9d7G_formGrid{flex-direction:column;gap:12px;display:flex}.WK9d7G_formGrid>.WK9d7G_field{flex:none}.WK9d7G_rowFields{flex-wrap:wrap;gap:10px;display:flex}.WK9d7G_field{flex-direction:column;flex:180px;gap:5px;min-width:0;display:flex}.WK9d7G_fieldPort{flex:0 96px}.WK9d7G_fieldLabel{color:var(--dshssh-fg-muted);font-size:12px;font-weight:500}.WK9d7G_required{color:var(--dshssh-danger-text);margin-left:2px}.WK9d7G_fieldGroup{flex-direction:column;gap:5px;display:flex}.WK9d7G_input{box-sizing:border-box;background:var(--dshssh-surface-inset);border:1px solid var(--dshssh-border);width:100%;color:var(--dshssh-fg);border-radius:7px;outline:none;padding:7px 10px;font-size:13px}.WK9d7G_input::placeholder{color:var(--dshssh-fg-subtle)}.WK9d7G_input:focus{border-color:var(--dshssh-accent);box-shadow:0 0 0 3px var(--dshssh-accent-soft)}.WK9d7G_input:disabled{opacity:.6}.WK9d7G_inputError{border-color:var(--dshssh-danger)}.WK9d7G_inputError:focus{border-color:var(--dshssh-danger);box-shadow:0 0 0 3px var(--dshssh-danger-soft)}.WK9d7G_fieldError{color:var(--dshssh-danger-text);margin:0;font-size:11.5px}.WK9d7G_fieldHint{color:var(--dshssh-fg-subtle);font-size:11.5px}.WK9d7G_segment{border:1px solid var(--dshssh-line);background:var(--dshssh-surface-inset);border-radius:9px;gap:3px;width:fit-content;padding:3px;display:inline-flex}.WK9d7G_segmentButton{color:var(--dshssh-fg-muted);cursor:pointer;background:0 0;border:none;border-radius:6px;align-items:center;gap:6px;padding:4px 14px;font-size:12.5px;font-weight:500;display:inline-flex}.WK9d7G_segmentButton:hover:not(.WK9d7G_segmentButtonOn):not(:disabled){color:var(--dshssh-fg)}.WK9d7G_segmentButtonOn{background:var(--dshssh-surface-3);color:var(--dshssh-fg);box-shadow:inset 0 0 0 1px var(--dshssh-border-strong)}.WK9d7G_segmentButtonOn svg{color:var(--dshssh-accent)}.WK9d7G_segmentButton:disabled{opacity:.55;cursor:default}.WK9d7G_feedback{overflow-wrap:anywhere;border-radius:7px;align-items:flex-start;gap:8px;padding:8px 11px;font-size:12.5px;line-height:1.45;display:flex}.WK9d7G_feedback svg{flex:none;margin-top:1px}.WK9d7G_feedbackInfo{background:var(--dshssh-surface-2);border:1px solid var(--dshssh-line);color:var(--dshssh-fg-muted)}.WK9d7G_feedbackSuccess{background:var(--dshssh-success-soft);border:1px solid color-mix(in srgb, var(--dshssh-success) 26%, transparent);color:var(--dshssh-success-text)}.WK9d7G_feedbackError{background:var(--dshssh-danger-soft);border:1px solid color-mix(in srgb, var(--dshssh-danger) 26%, transparent);color:var(--dshssh-danger-text)}.WK9d7G_formActions{flex-wrap:wrap;align-items:center;gap:8px;display:flex}.WK9d7G_createIn{color:var(--dshssh-fg-muted);overflow-wrap:anywhere;margin:0;font-size:12px}.WK9d7G_createPath{color:var(--dshssh-fg);font-size:11.5px}.WK9d7G_confirmHead{align-items:flex-start;gap:12px;display:flex}.WK9d7G_confirmIconWrap{background:var(--dshssh-danger-soft);width:34px;height:34px;color:var(--dshssh-danger-text);border-radius:9px;flex:none;justify-content:center;align-items:center;display:inline-flex}.WK9d7G_confirmIconInfo{background:var(--dshssh-accent-soft);color:var(--dshssh-accent)}.WK9d7G_confirmText{color:var(--dshssh-fg-muted);overflow-wrap:anywhere;margin:3px 0 0;font-size:12.5px;line-height:1.55}@media (width<=640px){.WK9d7G_overlay{padding:12px}.WK9d7G_dialog,.WK9d7G_smallDialog,.WK9d7G_form{max-height:calc(100vh - 24px)}.WK9d7G_body{flex-direction:column}.WK9d7G_sidebar{border-right:none;border-bottom:1px solid var(--dshssh-line);width:auto;max-height:38%}.WK9d7G_main{min-height:0}.WK9d7G_errorPanel{flex-wrap:wrap}.WK9d7G_errorActions{flex-direction:row;align-self:flex-start}.WK9d7G_toolbar,.WK9d7G_footer{flex-wrap:wrap}}";
+		//#region \0dsh-css:/Users/ruitongxue/Documents/MyProject/dsh-0.2.2/packages/remote/ssh-gui/src/client/flow.module.css.mjs
+		const css = ".tOWYia_overlay{--dshssh-accent:var(--color-primary,var(--accent,var(--primary,#4a6cf7)));--dshssh-accent-fg:#fff;--dshssh-surface:var(--color-bg-elevated,var(--background,var(--card,#17181c)));--dshssh-fg:var(--color-fg,var(--foreground,#e8e9ec));--dshssh-danger:var(--color-danger,var(--destructive,#e5534b));--dshssh-success:var(--color-success,var(--success,#3fb950));--dshssh-scrim:#090a0d94;--dshssh-shadow:0 24px 64px #00000080;--dshssh-surface-2:color-mix(in srgb, var(--dshssh-fg) 3%, var(--dshssh-surface));--dshssh-surface-3:color-mix(in srgb, var(--dshssh-fg) 7%, var(--dshssh-surface));--dshssh-surface-inset:color-mix(in srgb, black 10%, var(--dshssh-surface));--dshssh-line:color-mix(in srgb, var(--dshssh-fg) 8%, var(--dshssh-surface));--dshssh-border:color-mix(in srgb, var(--dshssh-fg) 14%, var(--dshssh-surface));--dshssh-border-strong:color-mix(in srgb, var(--dshssh-fg) 26%, var(--dshssh-surface));--dshssh-fg-muted:color-mix(in srgb, var(--dshssh-fg) 60%, var(--dshssh-surface));--dshssh-fg-subtle:color-mix(in srgb, var(--dshssh-fg) 38%, var(--dshssh-surface));--dshssh-accent-soft:color-mix(in srgb, var(--dshssh-accent) 13%, var(--dshssh-surface));--dshssh-danger-soft:color-mix(in srgb, var(--dshssh-danger) 12%, var(--dshssh-surface));--dshssh-success-soft:color-mix(in srgb, var(--dshssh-success) 12%, var(--dshssh-surface));--dshssh-danger-text:color-mix(in srgb, var(--dshssh-danger) 55%, var(--dshssh-fg));--dshssh-success-text:color-mix(in srgb, var(--dshssh-success) 45%, var(--dshssh-fg))}@media (prefers-color-scheme:light){.tOWYia_overlay{--dshssh-accent:var(--color-primary,var(--accent,var(--primary,#3b5bdb)));--dshssh-surface:var(--color-bg-elevated,var(--background,var(--card,#fff)));--dshssh-fg:var(--color-fg,var(--foreground,#21242a));--dshssh-danger:var(--color-danger,var(--destructive,#c9352f));--dshssh-success:var(--color-success,var(--success,#157f37));--dshssh-scrim:#0f111557;--dshssh-shadow:0 24px 64px #0f111533;--dshssh-surface-2:color-mix(in srgb, var(--dshssh-fg) 3%, var(--dshssh-surface));--dshssh-surface-3:color-mix(in srgb, var(--dshssh-fg) 7%, var(--dshssh-surface));--dshssh-surface-inset:color-mix(in srgb, black 6%, var(--dshssh-surface));--dshssh-line:color-mix(in srgb, var(--dshssh-fg) 8%, var(--dshssh-surface));--dshssh-border:color-mix(in srgb, var(--dshssh-fg) 14%, var(--dshssh-surface));--dshssh-border-strong:color-mix(in srgb, var(--dshssh-fg) 26%, var(--dshssh-surface));--dshssh-fg-muted:color-mix(in srgb, var(--dshssh-fg) 60%, var(--dshssh-surface));--dshssh-fg-subtle:color-mix(in srgb, var(--dshssh-fg) 38%, var(--dshssh-surface));--dshssh-accent-soft:color-mix(in srgb, var(--dshssh-accent) 11%, var(--dshssh-surface));--dshssh-danger-soft:color-mix(in srgb, var(--dshssh-danger) 10%, var(--dshssh-surface));--dshssh-success-soft:color-mix(in srgb, var(--dshssh-success) 10%, var(--dshssh-surface));--dshssh-danger-text:color-mix(in srgb, var(--dshssh-danger) 55%, var(--dshssh-fg));--dshssh-success-text:color-mix(in srgb, var(--dshssh-success) 45%, var(--dshssh-fg))}}.tOWYia_overlay{z-index:1000;overscroll-behavior:contain;background:var(--dshssh-scrim);font-family:var(--font-sans,ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", Roboto, \"PingFang SC\", \"Microsoft YaHei\", sans-serif);justify-content:center;align-items:center;padding:24px;display:flex;position:fixed;inset:0}.tOWYia_overlay button,.tOWYia_overlay input{font-family:inherit}.tOWYia_overlay :focus-visible{outline:2px solid var(--dshssh-accent);outline-offset:1px}.tOWYia_gap{flex:auto}.tOWYia_mono{font-family:var(--font-mono,ui-monospace, \"SF Mono\", \"Cascadia Code\", Consolas, monospace)}.tOWYia_spin{animation:.8s linear infinite tOWYia_dshssh-rotate}@keyframes tOWYia_dshssh-rotate{to{transform:rotate(360deg)}}@media (prefers-reduced-motion:reduce){.tOWYia_spin{animation:none}}.tOWYia_button{border:1px solid var(--dshssh-border);color:var(--dshssh-fg);cursor:pointer;white-space:nowrap;background:0 0;border-radius:7px;justify-content:center;align-items:center;gap:6px;padding:5px 13px;font-size:12.5px;font-weight:500;line-height:1.4;display:inline-flex}.tOWYia_button svg{flex:none}.tOWYia_button:hover:not(:disabled){background:var(--dshssh-surface-3);border-color:var(--dshssh-border-strong)}.tOWYia_primary{background:var(--dshssh-accent);border-color:var(--dshssh-accent);color:var(--dshssh-accent-fg)}.tOWYia_primary:hover:not(:disabled){background:color-mix(in srgb, var(--dshssh-accent) 85%, #fff);border-color:color-mix(in srgb, var(--dshssh-accent) 85%, #fff)}.tOWYia_danger{background:var(--dshssh-danger);border-color:var(--dshssh-danger);color:#fff}.tOWYia_danger:hover:not(:disabled){background:color-mix(in srgb, var(--dshssh-danger) 82%, #fff);border-color:color-mix(in srgb, var(--dshssh-danger) 82%, #fff)}.tOWYia_button:disabled{opacity:.5;cursor:default}.tOWYia_iconButton{width:28px;height:28px;color:var(--dshssh-fg-muted);cursor:pointer;background:0 0;border:none;border-radius:6px;flex:none;justify-content:center;align-items:center;display:inline-flex}.tOWYia_iconButton:hover:not(:disabled){background:var(--dshssh-surface-3);color:var(--dshssh-fg)}.tOWYia_iconButton:disabled{opacity:.45;cursor:default}.tOWYia_dialog{background:var(--dshssh-surface);width:min(920px,100%);height:min(620px,100vh - 48px);color:var(--dshssh-fg);border:1px solid var(--dshssh-border);box-shadow:var(--dshssh-shadow);border-radius:12px;flex-direction:column;font-size:13px;display:flex;overflow:hidden}.tOWYia_header{align-items:center;gap:10px;padding:14px 16px 10px;display:flex}.tOWYia_headerText{flex:auto;min-width:0}.tOWYia_title{margin:0;font-size:15px;font-weight:600;line-height:1.35}.tOWYia_subtitle{color:var(--dshssh-fg-muted);text-overflow:ellipsis;white-space:nowrap;margin:2px 0 0;font-size:12px;overflow:hidden}.tOWYia_body{flex:auto;min-height:0;display:flex}.tOWYia_sidebar{border-right:1px solid var(--dshssh-line);background:var(--dshssh-surface-2);overscroll-behavior:contain;flex-direction:column;flex:none;width:268px;padding:10px;display:flex;overflow-y:auto}.tOWYia_main{flex-direction:column;flex:auto;min-width:0;min-height:0;display:flex}.tOWYia_sidebarSection{flex-direction:column;display:flex}.tOWYia_sidebarSection+.tOWYia_sidebarSection{border-top:1px solid var(--dshssh-line);margin-top:10px;padding-top:10px}.tOWYia_sidebarAdd{background:var(--dshssh-accent);width:30px;height:30px;color:var(--dshssh-accent-fg);cursor:pointer;border:none;border-radius:50%;flex:none;justify-content:center;align-items:center;margin-top:10px;margin-left:auto;padding:0;display:inline-flex;position:sticky;bottom:4px;box-shadow:0 4px 12px #00000047}.tOWYia_sidebarAdd:hover{filter:brightness(1.1)}.tOWYia_sidebarTitle{color:var(--dshssh-fg-subtle);letter-spacing:.08em;text-transform:uppercase;align-items:center;gap:6px;margin:0 0 4px;padding:0 2px;font-size:10.5px;font-weight:600;display:flex}.tOWYia_sidebarCount{background:var(--dshssh-surface-3);color:var(--dshssh-fg-muted);border-radius:8px;padding:0 6px;font-size:11px;font-weight:600;line-height:17px}.tOWYia_sideError{background:var(--dshssh-danger-soft);border:1px solid color-mix(in srgb, var(--dshssh-danger) 28%, transparent);border-radius:8px;flex-direction:column;align-items:flex-start;gap:6px;padding:8px 10px;display:flex}.tOWYia_sideErrorText{color:var(--dshssh-danger-text);overflow-wrap:anywhere;margin:0;font-size:12px}.tOWYia_sideEmpty{flex-direction:column;align-items:flex-start;gap:3px;padding:6px 2px 4px;display:flex}.tOWYia_sideEmptyIcon{color:var(--dshssh-fg-subtle);margin-bottom:2px}.tOWYia_sideEmptyTitle{color:var(--dshssh-fg);margin:0;font-size:12.5px;font-weight:600}.tOWYia_sideEmptyText{color:var(--dshssh-fg-muted);margin:0;font-size:12px;line-height:1.5}.tOWYia_hostWorking{color:var(--dshssh-fg-muted);align-items:center;gap:5px;font-size:12px;display:inline-flex}.tOWYia_hostSpinner{width:12px;height:12px;color:var(--dshssh-accent)}.tOWYia_hostErrorText{color:var(--dshssh-danger-text);overflow-wrap:anywhere;font-size:12px;line-height:1.45}.tOWYia_toolbar{border-top:1px solid var(--dshssh-line);border-bottom:1px solid var(--dshssh-line);background:var(--dshssh-surface-2);flex:none;align-items:center;gap:8px;min-height:36px;padding:5px 16px;display:flex}.tOWYia_crumbs{flex-wrap:wrap;flex:auto;align-items:center;gap:2px;min-width:0;font-size:12px;display:flex}.tOWYia_crumb{color:var(--dshssh-accent);cursor:pointer;text-overflow:ellipsis;white-space:nowrap;background:0 0;border:none;border-radius:4px;max-width:22ch;padding:2px 5px;font-size:12px;overflow:hidden}.tOWYia_crumb:hover:not(:disabled){background:var(--dshssh-surface-3)}.tOWYia_crumb:disabled{color:var(--dshssh-fg-subtle);cursor:default}.tOWYia_crumbStep{align-items:center;display:inline-flex}.tOWYia_crumbSep{color:var(--dshssh-fg-subtle);padding:0 1px}.tOWYia_crumbCurrent{color:var(--dshssh-fg);text-overflow:ellipsis;white-space:nowrap;max-width:44ch;padding:2px 5px;font-weight:600;overflow:hidden}.tOWYia_toolbarActions{flex:none;align-items:center;gap:4px;display:flex}.tOWYia_toolButton{width:28px;height:28px;color:var(--dshssh-fg-muted);cursor:pointer;background:0 0;border:none;border-radius:6px;justify-content:center;align-items:center;display:inline-flex;position:relative}.tOWYia_toolButtonText{border:1px solid var(--dshssh-border);width:auto;color:var(--dshssh-fg);gap:5px;padding:0 9px;font-size:12px;font-weight:500}.tOWYia_toolButton:hover:not(:disabled):not(.tOWYia_toolButtonOn){background:var(--dshssh-surface-3);color:var(--dshssh-fg)}.tOWYia_toolButton:disabled{opacity:.45;cursor:default}.tOWYia_toolButtonOn{background:var(--dshssh-accent-soft);color:var(--dshssh-accent)}.tOWYia_countBadge{background:var(--dshssh-accent);min-width:14px;height:14px;color:var(--dshssh-accent-fg);text-align:center;border-radius:7px;padding:0 3px;font-size:10px;font-weight:600;line-height:14px;position:absolute;top:-3px;right:-5px}.tOWYia_browser{overscroll-behavior:contain;flex:auto;min-height:0;padding:6px 10px 8px 8px;overflow-y:auto}.tOWYia_browserBusy .tOWYia_entryList{opacity:.55;pointer-events:none}.tOWYia_entryList{flex-direction:column;gap:1px;margin:0;padding:0;list-style:none;display:flex}.tOWYia_entry{width:100%;color:var(--dshssh-fg);text-align:left;cursor:pointer;background:0 0;border:none;border-radius:7px;align-items:center;gap:8px;padding:6px 10px;font-size:13px;display:flex}.tOWYia_entry:hover{background:var(--dshssh-surface-3)}.tOWYia_entryIcon{color:var(--dshssh-fg-muted);flex:none}.tOWYia_entryName{text-overflow:ellipsis;white-space:nowrap;flex:auto;min-width:0;overflow:hidden}.tOWYia_entryHidden .tOWYia_entryName,.tOWYia_entryHidden .tOWYia_entryIcon{opacity:.65}.tOWYia_entryChevron{color:var(--dshssh-fg-subtle);opacity:0;flex:none;transition:opacity .12s}.tOWYia_entry:hover .tOWYia_entryChevron,.tOWYia_entry:focus-visible .tOWYia_entryChevron{opacity:1}.tOWYia_truncated{color:var(--dshssh-fg-subtle);margin:6px 4px 0;font-size:12px}.tOWYia_skeletons{flex-direction:column;gap:10px;padding:10px 6px;display:flex}.tOWYia_skeleton{background:var(--dshssh-surface-3);border-radius:6px;height:12px;animation:1.4s ease-in-out infinite tOWYia_dshssh-pulse}@keyframes tOWYia_dshssh-pulse{0%,to{opacity:.45}50%{opacity:.9}}@media (prefers-reduced-motion:reduce){.tOWYia_skeleton{opacity:.6;animation:none}}.tOWYia_errorPanel{background:var(--dshssh-danger-soft);border:1px solid color-mix(in srgb, var(--dshssh-danger) 28%, transparent);border-radius:8px;align-items:flex-start;gap:10px;margin:10px 6px;padding:10px 12px;display:flex}.tOWYia_errorIcon{color:var(--dshssh-danger-text);flex:none;margin-top:1px}.tOWYia_errorBody{flex:auto;min-width:0}.tOWYia_errorActions{flex-direction:column;flex:none;align-self:center;align-items:stretch;gap:6px;display:flex}.tOWYia_errorTitle{color:var(--dshssh-danger-text);margin:0;font-size:12.5px;font-weight:600}.tOWYia_errorText{color:var(--dshssh-fg-muted);overflow-wrap:anywhere;margin:2px 0 0;font-size:12px}.tOWYia_retryButton{border:1px solid var(--dshssh-border);background:var(--dshssh-surface);color:var(--dshssh-fg);cursor:pointer;border-radius:6px;flex:none;align-items:center;gap:5px;padding:3px 9px;font-size:12px;display:inline-flex}.tOWYia_retryButton:hover{background:var(--dshssh-surface-3)}.tOWYia_emptyState{text-align:center;flex-direction:column;align-items:center;gap:4px;margin:auto;padding:28px 16px;display:flex}.tOWYia_emptyIcon{color:var(--dshssh-fg-subtle);margin-bottom:4px}.tOWYia_emptyTitle{color:var(--dshssh-fg);margin:0;font-size:13px;font-weight:600}.tOWYia_emptyText{color:var(--dshssh-fg-muted);margin:0;font-size:12px}.tOWYia_connectionList{flex-direction:column;gap:2px;margin:0;padding:0;list-style:none;display:flex}.tOWYia_connectionItem{border-radius:8px;align-items:stretch;gap:2px;display:flex}.tOWYia_connectionItem:hover:not(.tOWYia_connectionItemActive){background:color-mix(in srgb, var(--dshssh-fg) 4%, transparent)}.tOWYia_connectionItemActive{background:var(--dshssh-accent-soft)}.tOWYia_connectionMain{min-width:0;color:var(--dshssh-fg);font-size:inherit;text-align:left;cursor:pointer;background:0 0;border:none;border-radius:7px;flex:auto;align-items:center;gap:10px;padding:5px 9px;display:flex}.tOWYia_connectionIcon{color:var(--dshssh-fg-muted);flex:none}.tOWYia_connectionItemActive .tOWYia_connectionIcon{color:var(--dshssh-accent)}.tOWYia_connectionInfo{flex-direction:column;flex:auto;gap:1px;min-width:0;display:flex}.tOWYia_connectionLabel{text-overflow:ellipsis;white-space:nowrap;font-size:13px;font-weight:600;overflow:hidden}.tOWYia_connectionDetail{color:var(--dshssh-fg-muted);align-items:center;gap:5px;min-width:0;font-size:11.5px;display:flex}.tOWYia_connectionEndpoint{text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.tOWYia_badge{background:color-mix(in srgb, var(--dshssh-fg) 5%, transparent);height:15px;color:var(--dshssh-fg-subtle);border:none;border-radius:4px;flex:none;align-items:center;gap:3px;padding:0 5px;font-size:10.5px;font-weight:500;line-height:14px;display:inline-flex}.tOWYia_connectionItemActive .tOWYia_badge{background:color-mix(in srgb, var(--dshssh-surface) 55%, transparent)}.tOWYia_badge svg{width:11px;height:11px}.tOWYia_badgeUsed,.tOWYia_badgeIdle{border:none;border-radius:4px;flex:none;align-items:center;height:15px;padding:0 5px;font-size:10.5px;font-weight:500;line-height:14px;display:inline-flex}.tOWYia_badgeUsed{background:color-mix(in srgb, var(--dshssh-accent) 14%, transparent);color:var(--dshssh-accent)}.tOWYia_badgeIdle{background:color-mix(in srgb, var(--dshssh-fg) 5%, transparent);color:var(--dshssh-fg-subtle)}.tOWYia_connectionItemActive .tOWYia_badgeUsed,.tOWYia_connectionItemActive .tOWYia_badgeIdle{background:color-mix(in srgb, var(--dshssh-surface) 55%, transparent)}.tOWYia_badgeAdded{background:var(--dshssh-success-soft);color:var(--dshssh-success-text)}.tOWYia_connectionRemove{width:30px;color:var(--dshssh-fg-subtle);cursor:pointer;opacity:0;background:0 0;border:none;border-radius:7px;flex:none;justify-content:center;align-items:center;transition:opacity .12s;display:inline-flex}.tOWYia_connectionItem:hover .tOWYia_connectionRemove,.tOWYia_connectionRemove:focus-visible,.tOWYia_connectionItemActive .tOWYia_connectionRemove{opacity:1}.tOWYia_connectionRemove:hover{color:var(--dshssh-danger-text);background:var(--dshssh-danger-soft)}@media (hover:none){.tOWYia_connectionRemove{opacity:1}}.tOWYia_connectionAction{width:30px;color:var(--dshssh-fg-subtle);cursor:pointer;opacity:0;background:0 0;border:none;border-radius:7px;flex:none;justify-content:center;align-items:center;transition:opacity .12s;display:inline-flex}.tOWYia_connectionItem:hover .tOWYia_connectionAction,.tOWYia_connectionAction:focus-visible,.tOWYia_connectionItemActive .tOWYia_connectionAction{opacity:1}.tOWYia_connectionAction:hover:not(:disabled){color:var(--dshssh-fg);background:var(--dshssh-bg-hover)}.tOWYia_connectionAction:disabled{cursor:default;opacity:.5}.tOWYia_connectionNote,.tOWYia_connectionNoteError{margin:6px 2px 0;font-size:12px;line-height:16px}.tOWYia_connectionNote{color:var(--dshssh-fg-subtle)}.tOWYia_connectionNoteError{color:var(--dshssh-danger-text)}@media (hover:none){.tOWYia_connectionAction{opacity:1}}.tOWYia_skeletonRow{align-items:center;gap:10px;padding:10px 6px;display:flex}.tOWYia_skeletonDot{background:var(--dshssh-surface-3);border-radius:5px;flex:none;width:16px;height:16px;animation:1.4s ease-in-out infinite tOWYia_dshssh-pulse}.tOWYia_skeletonLines{flex-direction:column;flex:auto;gap:6px;display:flex}.tOWYia_skeletonLine{background:var(--dshssh-surface-3);border-radius:5px;height:9px;animation:1.4s ease-in-out infinite tOWYia_dshssh-pulse}.tOWYia_footer{border-top:1px solid var(--dshssh-line);align-items:center;gap:8px;padding:12px 16px 14px;display:flex}.tOWYia_smallDialog,.tOWYia_form{overscroll-behavior:contain;background:var(--dshssh-surface);width:min(520px,100%);max-height:calc(100vh - 48px);color:var(--dshssh-fg);border:1px solid var(--dshssh-border);box-shadow:var(--dshssh-shadow);border-radius:12px;flex-direction:column;gap:12px;padding:16px 18px;font-size:13px;display:flex;overflow-y:auto}.tOWYia_form{width:min(560px,100%)}.tOWYia_formTitle{margin:0;font-size:14px;font-weight:600}.tOWYia_formSub{color:var(--dshssh-fg-muted);margin:2px 0 0;font-size:12px}.tOWYia_formHead{align-items:flex-start;gap:10px;display:flex}.tOWYia_formHeadText{flex:auto;min-width:0}.tOWYia_formGrid{flex-direction:column;gap:12px;display:flex}.tOWYia_formGrid>.tOWYia_field{flex:none}.tOWYia_rowFields{flex-wrap:wrap;gap:10px;display:flex}.tOWYia_field{flex-direction:column;flex:180px;gap:5px;min-width:0;display:flex}.tOWYia_fieldPort{flex:0 96px}.tOWYia_fieldLabel{color:var(--dshssh-fg-muted);font-size:12px;font-weight:500}.tOWYia_required{color:var(--dshssh-danger-text);margin-left:2px}.tOWYia_fieldGroup{flex-direction:column;gap:5px;display:flex}.tOWYia_input{box-sizing:border-box;background:var(--dshssh-surface-inset);border:1px solid var(--dshssh-border);width:100%;color:var(--dshssh-fg);border-radius:7px;outline:none;padding:7px 10px;font-size:13px}.tOWYia_input::placeholder{color:var(--dshssh-fg-subtle)}.tOWYia_input:focus{border-color:var(--dshssh-accent);box-shadow:0 0 0 3px var(--dshssh-accent-soft)}.tOWYia_input:disabled{opacity:.6}.tOWYia_inputError{border-color:var(--dshssh-danger)}.tOWYia_inputError:focus{border-color:var(--dshssh-danger);box-shadow:0 0 0 3px var(--dshssh-danger-soft)}.tOWYia_fieldError{color:var(--dshssh-danger-text);margin:0;font-size:11.5px}.tOWYia_fieldHint{color:var(--dshssh-fg-subtle);font-size:11.5px}.tOWYia_segment{border:1px solid var(--dshssh-line);background:var(--dshssh-surface-inset);border-radius:9px;gap:3px;width:fit-content;padding:3px;display:inline-flex}.tOWYia_segmentButton{color:var(--dshssh-fg-muted);cursor:pointer;background:0 0;border:none;border-radius:6px;align-items:center;gap:6px;padding:4px 14px;font-size:12.5px;font-weight:500;display:inline-flex}.tOWYia_segmentButton:hover:not(.tOWYia_segmentButtonOn):not(:disabled){color:var(--dshssh-fg)}.tOWYia_segmentButtonOn{background:var(--dshssh-surface-3);color:var(--dshssh-fg);box-shadow:inset 0 0 0 1px var(--dshssh-border-strong)}.tOWYia_segmentButtonOn svg{color:var(--dshssh-accent)}.tOWYia_segmentButton:disabled{opacity:.55;cursor:default}.tOWYia_feedback{overflow-wrap:anywhere;border-radius:7px;align-items:flex-start;gap:8px;padding:8px 11px;font-size:12.5px;line-height:1.45;display:flex}.tOWYia_feedback svg{flex:none;margin-top:1px}.tOWYia_feedbackInfo{background:var(--dshssh-surface-2);border:1px solid var(--dshssh-line);color:var(--dshssh-fg-muted)}.tOWYia_feedbackSuccess{background:var(--dshssh-success-soft);border:1px solid color-mix(in srgb, var(--dshssh-success) 26%, transparent);color:var(--dshssh-success-text)}.tOWYia_feedbackError{background:var(--dshssh-danger-soft);border:1px solid color-mix(in srgb, var(--dshssh-danger) 26%, transparent);color:var(--dshssh-danger-text)}.tOWYia_formActions{flex-wrap:wrap;align-items:center;gap:8px;display:flex}.tOWYia_createIn{color:var(--dshssh-fg-muted);overflow-wrap:anywhere;margin:0;font-size:12px}.tOWYia_createPath{color:var(--dshssh-fg);font-size:11.5px}.tOWYia_confirmHead{align-items:flex-start;gap:12px;display:flex}.tOWYia_confirmIconWrap{background:var(--dshssh-danger-soft);width:34px;height:34px;color:var(--dshssh-danger-text);border-radius:9px;flex:none;justify-content:center;align-items:center;display:inline-flex}.tOWYia_confirmIconInfo{background:var(--dshssh-accent-soft);color:var(--dshssh-accent)}.tOWYia_confirmText{color:var(--dshssh-fg-muted);overflow-wrap:anywhere;margin:3px 0 0;font-size:12.5px;line-height:1.55}.tOWYia_confirmWarn{color:var(--dshssh-danger-text);overflow-wrap:anywhere;margin:8px 0 0;font-size:12.5px;line-height:1.55}@media (width<=640px){.tOWYia_overlay{padding:12px}.tOWYia_dialog,.tOWYia_smallDialog,.tOWYia_form{max-height:calc(100vh - 24px)}.tOWYia_body{flex-direction:column}.tOWYia_sidebar{border-right:none;border-bottom:1px solid var(--dshssh-line);width:auto;max-height:38%}.tOWYia_main{flex:1 1 0;min-height:0}.tOWYia_errorPanel{flex-wrap:wrap}.tOWYia_errorActions{flex-direction:row;align-self:flex-start}.tOWYia_toolbar,.tOWYia_footer{flex-wrap:wrap}}";
 		const tagId = "dsh-ssh-gui/flow.module.css";
 		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId) + "]") === null) {
 			const tag = document.createElement("style");
@@ -286,118 +286,124 @@ window.__ModuleLoader__.load({
 			document.head.appendChild(tag);
 		}
 		var flow_module_css_default = {
-			"badge": "WK9d7G_badge",
-			"badgeAdded": "WK9d7G_badgeAdded",
-			"body": "WK9d7G_body",
-			"browser": "WK9d7G_browser",
-			"browserBusy": "WK9d7G_browserBusy",
-			"button": "WK9d7G_button",
-			"confirmHead": "WK9d7G_confirmHead",
-			"confirmIconInfo": "WK9d7G_confirmIconInfo",
-			"confirmIconWrap": "WK9d7G_confirmIconWrap",
-			"confirmText": "WK9d7G_confirmText",
-			"connectionDetail": "WK9d7G_connectionDetail",
-			"connectionEndpoint": "WK9d7G_connectionEndpoint",
-			"connectionIcon": "WK9d7G_connectionIcon",
-			"connectionInfo": "WK9d7G_connectionInfo",
-			"connectionItem": "WK9d7G_connectionItem",
-			"connectionItemActive": "WK9d7G_connectionItemActive",
-			"connectionLabel": "WK9d7G_connectionLabel",
-			"connectionList": "WK9d7G_connectionList",
-			"connectionMain": "WK9d7G_connectionMain",
-			"connectionRemove": "WK9d7G_connectionRemove",
-			"countBadge": "WK9d7G_countBadge",
-			"createIn": "WK9d7G_createIn",
-			"createPath": "WK9d7G_createPath",
-			"crumb": "WK9d7G_crumb",
-			"crumbCurrent": "WK9d7G_crumbCurrent",
-			"crumbSep": "WK9d7G_crumbSep",
-			"crumbStep": "WK9d7G_crumbStep",
-			"crumbs": "WK9d7G_crumbs",
-			"danger": "WK9d7G_danger",
-			"dialog": "WK9d7G_dialog",
-			"dshssh-pulse": "WK9d7G_dshssh-pulse",
-			"dshssh-rotate": "WK9d7G_dshssh-rotate",
-			"emptyIcon": "WK9d7G_emptyIcon",
-			"emptyState": "WK9d7G_emptyState",
-			"emptyText": "WK9d7G_emptyText",
-			"emptyTitle": "WK9d7G_emptyTitle",
-			"entry": "WK9d7G_entry",
-			"entryChevron": "WK9d7G_entryChevron",
-			"entryHidden": "WK9d7G_entryHidden",
-			"entryIcon": "WK9d7G_entryIcon",
-			"entryList": "WK9d7G_entryList",
-			"entryName": "WK9d7G_entryName",
-			"errorActions": "WK9d7G_errorActions",
-			"errorBody": "WK9d7G_errorBody",
-			"errorIcon": "WK9d7G_errorIcon",
-			"errorPanel": "WK9d7G_errorPanel",
-			"errorText": "WK9d7G_errorText",
-			"errorTitle": "WK9d7G_errorTitle",
-			"feedback": "WK9d7G_feedback",
-			"feedbackError": "WK9d7G_feedbackError",
-			"feedbackInfo": "WK9d7G_feedbackInfo",
-			"feedbackSuccess": "WK9d7G_feedbackSuccess",
-			"field": "WK9d7G_field",
-			"fieldError": "WK9d7G_fieldError",
-			"fieldGroup": "WK9d7G_fieldGroup",
-			"fieldHint": "WK9d7G_fieldHint",
-			"fieldLabel": "WK9d7G_fieldLabel",
-			"fieldPort": "WK9d7G_fieldPort",
-			"footer": "WK9d7G_footer",
-			"form": "WK9d7G_form",
-			"formActions": "WK9d7G_formActions",
-			"formGrid": "WK9d7G_formGrid",
-			"formHead": "WK9d7G_formHead",
-			"formHeadText": "WK9d7G_formHeadText",
-			"formSub": "WK9d7G_formSub",
-			"formTitle": "WK9d7G_formTitle",
-			"gap": "WK9d7G_gap",
-			"header": "WK9d7G_header",
-			"headerText": "WK9d7G_headerText",
-			"hostErrorText": "WK9d7G_hostErrorText",
-			"hostSpinner": "WK9d7G_hostSpinner",
-			"hostWorking": "WK9d7G_hostWorking",
-			"iconButton": "WK9d7G_iconButton",
-			"input": "WK9d7G_input",
-			"inputError": "WK9d7G_inputError",
-			"main": "WK9d7G_main",
-			"mono": "WK9d7G_mono",
-			"overlay": "WK9d7G_overlay",
-			"primary": "WK9d7G_primary",
-			"required": "WK9d7G_required",
-			"retryButton": "WK9d7G_retryButton",
-			"rowFields": "WK9d7G_rowFields",
-			"segment": "WK9d7G_segment",
-			"segmentButton": "WK9d7G_segmentButton",
-			"segmentButtonOn": "WK9d7G_segmentButtonOn",
-			"sideEmpty": "WK9d7G_sideEmpty",
-			"sideEmptyIcon": "WK9d7G_sideEmptyIcon",
-			"sideEmptyText": "WK9d7G_sideEmptyText",
-			"sideEmptyTitle": "WK9d7G_sideEmptyTitle",
-			"sideError": "WK9d7G_sideError",
-			"sideErrorText": "WK9d7G_sideErrorText",
-			"sidebar": "WK9d7G_sidebar",
-			"sidebarAdd": "WK9d7G_sidebarAdd",
-			"sidebarCount": "WK9d7G_sidebarCount",
-			"sidebarSection": "WK9d7G_sidebarSection",
-			"sidebarTitle": "WK9d7G_sidebarTitle",
-			"skeleton": "WK9d7G_skeleton",
-			"skeletonDot": "WK9d7G_skeletonDot",
-			"skeletonLine": "WK9d7G_skeletonLine",
-			"skeletonLines": "WK9d7G_skeletonLines",
-			"skeletonRow": "WK9d7G_skeletonRow",
-			"skeletons": "WK9d7G_skeletons",
-			"smallDialog": "WK9d7G_smallDialog",
-			"spin": "WK9d7G_spin",
-			"subtitle": "WK9d7G_subtitle",
-			"title": "WK9d7G_title",
-			"toolButton": "WK9d7G_toolButton",
-			"toolButtonOn": "WK9d7G_toolButtonOn",
-			"toolButtonText": "WK9d7G_toolButtonText",
-			"toolbar": "WK9d7G_toolbar",
-			"toolbarActions": "WK9d7G_toolbarActions",
-			"truncated": "WK9d7G_truncated"
+			"badge": "tOWYia_badge",
+			"badgeAdded": "tOWYia_badgeAdded",
+			"badgeIdle": "tOWYia_badgeIdle",
+			"badgeUsed": "tOWYia_badgeUsed",
+			"body": "tOWYia_body",
+			"browser": "tOWYia_browser",
+			"browserBusy": "tOWYia_browserBusy",
+			"button": "tOWYia_button",
+			"confirmHead": "tOWYia_confirmHead",
+			"confirmIconInfo": "tOWYia_confirmIconInfo",
+			"confirmIconWrap": "tOWYia_confirmIconWrap",
+			"confirmText": "tOWYia_confirmText",
+			"confirmWarn": "tOWYia_confirmWarn",
+			"connectionAction": "tOWYia_connectionAction",
+			"connectionDetail": "tOWYia_connectionDetail",
+			"connectionEndpoint": "tOWYia_connectionEndpoint",
+			"connectionIcon": "tOWYia_connectionIcon",
+			"connectionInfo": "tOWYia_connectionInfo",
+			"connectionItem": "tOWYia_connectionItem",
+			"connectionItemActive": "tOWYia_connectionItemActive",
+			"connectionLabel": "tOWYia_connectionLabel",
+			"connectionList": "tOWYia_connectionList",
+			"connectionMain": "tOWYia_connectionMain",
+			"connectionNote": "tOWYia_connectionNote",
+			"connectionNoteError": "tOWYia_connectionNoteError",
+			"connectionRemove": "tOWYia_connectionRemove",
+			"countBadge": "tOWYia_countBadge",
+			"createIn": "tOWYia_createIn",
+			"createPath": "tOWYia_createPath",
+			"crumb": "tOWYia_crumb",
+			"crumbCurrent": "tOWYia_crumbCurrent",
+			"crumbSep": "tOWYia_crumbSep",
+			"crumbStep": "tOWYia_crumbStep",
+			"crumbs": "tOWYia_crumbs",
+			"danger": "tOWYia_danger",
+			"dialog": "tOWYia_dialog",
+			"dshssh-pulse": "tOWYia_dshssh-pulse",
+			"dshssh-rotate": "tOWYia_dshssh-rotate",
+			"emptyIcon": "tOWYia_emptyIcon",
+			"emptyState": "tOWYia_emptyState",
+			"emptyText": "tOWYia_emptyText",
+			"emptyTitle": "tOWYia_emptyTitle",
+			"entry": "tOWYia_entry",
+			"entryChevron": "tOWYia_entryChevron",
+			"entryHidden": "tOWYia_entryHidden",
+			"entryIcon": "tOWYia_entryIcon",
+			"entryList": "tOWYia_entryList",
+			"entryName": "tOWYia_entryName",
+			"errorActions": "tOWYia_errorActions",
+			"errorBody": "tOWYia_errorBody",
+			"errorIcon": "tOWYia_errorIcon",
+			"errorPanel": "tOWYia_errorPanel",
+			"errorText": "tOWYia_errorText",
+			"errorTitle": "tOWYia_errorTitle",
+			"feedback": "tOWYia_feedback",
+			"feedbackError": "tOWYia_feedbackError",
+			"feedbackInfo": "tOWYia_feedbackInfo",
+			"feedbackSuccess": "tOWYia_feedbackSuccess",
+			"field": "tOWYia_field",
+			"fieldError": "tOWYia_fieldError",
+			"fieldGroup": "tOWYia_fieldGroup",
+			"fieldHint": "tOWYia_fieldHint",
+			"fieldLabel": "tOWYia_fieldLabel",
+			"fieldPort": "tOWYia_fieldPort",
+			"footer": "tOWYia_footer",
+			"form": "tOWYia_form",
+			"formActions": "tOWYia_formActions",
+			"formGrid": "tOWYia_formGrid",
+			"formHead": "tOWYia_formHead",
+			"formHeadText": "tOWYia_formHeadText",
+			"formSub": "tOWYia_formSub",
+			"formTitle": "tOWYia_formTitle",
+			"gap": "tOWYia_gap",
+			"header": "tOWYia_header",
+			"headerText": "tOWYia_headerText",
+			"hostErrorText": "tOWYia_hostErrorText",
+			"hostSpinner": "tOWYia_hostSpinner",
+			"hostWorking": "tOWYia_hostWorking",
+			"iconButton": "tOWYia_iconButton",
+			"input": "tOWYia_input",
+			"inputError": "tOWYia_inputError",
+			"main": "tOWYia_main",
+			"mono": "tOWYia_mono",
+			"overlay": "tOWYia_overlay",
+			"primary": "tOWYia_primary",
+			"required": "tOWYia_required",
+			"retryButton": "tOWYia_retryButton",
+			"rowFields": "tOWYia_rowFields",
+			"segment": "tOWYia_segment",
+			"segmentButton": "tOWYia_segmentButton",
+			"segmentButtonOn": "tOWYia_segmentButtonOn",
+			"sideEmpty": "tOWYia_sideEmpty",
+			"sideEmptyIcon": "tOWYia_sideEmptyIcon",
+			"sideEmptyText": "tOWYia_sideEmptyText",
+			"sideEmptyTitle": "tOWYia_sideEmptyTitle",
+			"sideError": "tOWYia_sideError",
+			"sideErrorText": "tOWYia_sideErrorText",
+			"sidebar": "tOWYia_sidebar",
+			"sidebarAdd": "tOWYia_sidebarAdd",
+			"sidebarCount": "tOWYia_sidebarCount",
+			"sidebarSection": "tOWYia_sidebarSection",
+			"sidebarTitle": "tOWYia_sidebarTitle",
+			"skeleton": "tOWYia_skeleton",
+			"skeletonDot": "tOWYia_skeletonDot",
+			"skeletonLine": "tOWYia_skeletonLine",
+			"skeletonLines": "tOWYia_skeletonLines",
+			"skeletonRow": "tOWYia_skeletonRow",
+			"skeletons": "tOWYia_skeletons",
+			"smallDialog": "tOWYia_smallDialog",
+			"spin": "tOWYia_spin",
+			"subtitle": "tOWYia_subtitle",
+			"title": "tOWYia_title",
+			"toolButton": "tOWYia_toolButton",
+			"toolButtonOn": "tOWYia_toolButtonOn",
+			"toolButtonText": "tOWYia_toolButtonText",
+			"toolbar": "tOWYia_toolbar",
+			"toolbarActions": "tOWYia_toolbarActions",
+			"truncated": "tOWYia_truncated"
 		};
 		//#endregion
 		//#region src/client/form.tsx
@@ -523,6 +529,23 @@ window.__ModuleLoader__.load({
 				const user = resolved.username !== "" ? resolved.username : username;
 				if (cwd.trim() === "" && user.trim() !== "") setCwd(`/home/${user.trim()}`);
 				setResolveSummary(resolved);
+			};
+			/**
+			* Edit the username, keeping an auto-filled directory in step with it.
+			*
+			* The field pre-fills `cwd` with `/home/<user>` (here and in
+			* {@link applyResolved}), which is a guess: when the operator then retypes the
+			* account, the old guess becomes a path that account cannot create. The
+			* remote helper used to fail outright on that (`mkdir` EACCES on another
+			* user's home), so keep the pair consistent — but only while the directory is
+			* still exactly the guess for the *previous* name, never over a hand-typed
+			* path.
+			* @param next - the username now in the field.
+			*/
+			const changeUsername = (next) => {
+				const previousGuess = username.trim() === "" ? "" : `/home/${username.trim()}`;
+				setUsername(next);
+				if (previousGuess !== "" && cwd === previousGuess && next.trim() !== "") setCwd(`/home/${next.trim()}`);
 			};
 			/**
 			* Silent alias resolution for blur/paste: no validation reveal, no error
@@ -799,7 +822,7 @@ window.__ModuleLoader__.load({
 												value: username,
 												disabled: busy,
 												onChange: (event) => {
-													setUsername(event.target.value);
+													changeUsername(event.target.value);
 												}
 											}),
 											usernameError !== void 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
@@ -1052,7 +1075,8 @@ window.__ModuleLoader__.load({
 				username: String(record.username ?? ""),
 				...typeof record.cwd === "string" ? { cwd: record.cwd } : {},
 				auth: record.auth === "password" || record.auth === "agent" ? record.auth : "key",
-				jumpHosts: Array.isArray(record.jumpHosts) ? record.jumpHosts.map(String) : []
+				jumpHosts: Array.isArray(record.jumpHosts) ? record.jumpHosts.map(String) : [],
+				...typeof record.workspaceCount === "number" ? { workspaceCount: record.workspaceCount } : {}
 			};
 		}
 		/** Structural check for a `connections.resolve` result. */
@@ -1149,6 +1173,10 @@ window.__ModuleLoader__.load({
 			const [nativePicking, setNativePicking] = (0, react.useState)(false);
 			const [deleteTarget, setDeleteTarget] = (0, react.useState)(null);
 			const [removingId, setRemovingId] = (0, react.useState)(null);
+			/** Connection id with a disconnect/reconnect in flight (buttons spin + disable). */
+			const [linkBusyId, setLinkBusyId] = (0, react.useState)(null);
+			/** Per-connection feedback for the disconnect/reconnect actions. */
+			const [linkNote, setLinkNote] = (0, react.useState)(null);
 			const generation = (0, react.useRef)(0);
 			const activeRequest = (0, react.useRef)(null);
 			const configGeneration = (0, react.useRef)(0);
@@ -1453,6 +1481,61 @@ window.__ModuleLoader__.load({
 					setDeleteTarget(null);
 				}
 			};
+			/**
+			* Drop one connection's live transport.
+			*
+			* The registry entry, its workspaces and its sessions all stay: the next file
+			* read, terminal or `ssh_exec` reconnects lazily. Useful to free a host that
+			* is at its session limit, or to let a terminal on a wedged link be replaced.
+			*/
+			const disconnectConnection = async (id) => {
+				if (linkBusyId !== null) return;
+				setLinkBusyId(id);
+				setLinkNote(null);
+				try {
+					const value = unwrap(await rpc("connections.disconnect", { id }), "connections.disconnect failed");
+					setLinkNote({
+						id,
+						kind: "ok",
+						text: isRecord(value) && value.dropped === true ? "已断开；下次使用会自动重连" : "当前没有活动连接"
+					});
+				} catch (error) {
+					setLinkNote({
+						id,
+						kind: "error",
+						text: error instanceof Error ? error.message : String(error)
+					});
+				} finally {
+					setLinkBusyId(null);
+				}
+			};
+			/** Disconnect then eagerly reconnect one connection, reporting reachability. */
+			const reconnectConnection = async (id) => {
+				if (linkBusyId !== null) return;
+				setLinkBusyId(id);
+				setLinkNote(null);
+				try {
+					const result = await rpc("connections.reconnect", { id });
+					if (result.ok) setLinkNote({
+						id,
+						kind: "ok",
+						text: "已重连"
+					});
+					else setLinkNote({
+						id,
+						kind: "error",
+						text: result.error.message
+					});
+				} catch (error) {
+					setLinkNote({
+						id,
+						kind: "error",
+						text: error instanceof Error ? error.message : String(error)
+					});
+				} finally {
+					setLinkBusyId(null);
+				}
+			};
 			const formResolve = async (host) => unwrap(await rpc("connections.resolve", { host }), "connections.resolve failed");
 			const formTest = async (input) => {
 				const result = await rpc("connections.test", input);
@@ -1633,71 +1716,119 @@ window.__ModuleLoader__.load({
 														const active = mode.kind === "remote" && mode.id === connection.id;
 														return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("li", {
 															className: cx(flow_module_css_default.connectionItem, active && flow_module_css_default.connectionItemActive),
-															children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
-																type: "button",
-																className: flow_module_css_default.connectionMain,
-																"aria-current": active ? "true" : "false",
-																onClick: () => {
-																	navigateRemote(connection.id);
-																},
-																children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(ServerIcon, { className: flow_module_css_default.connectionIcon }), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-																	className: flow_module_css_default.connectionInfo,
-																	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-																		className: flow_module_css_default.connectionLabel,
-																		children: connection.label
-																	}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-																		className: flow_module_css_default.connectionDetail,
-																		children: [
-																			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-																				className: flow_module_css_default.connectionEndpoint,
-																				children: [
-																					connection.username,
-																					"@",
-																					connection.host,
-																					":",
-																					connection.port
-																				]
-																			}),
-																			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-																				className: flow_module_css_default.badge,
-																				children: [connection.auth === "password" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(LockIcon, { style: {
-																					width: 11,
-																					height: 11
-																				} }) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(KeyIcon, { style: {
-																					width: 11,
-																					height: 11
-																				} }), connection.auth === "password" ? "密码" : connection.auth === "agent" ? "Agent" : "私钥"]
-																			}),
-																			connection.jumpHosts.length > 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-																				className: flow_module_css_default.badge,
-																				title: connection.jumpHosts.join(" → "),
-																				children: [
-																					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(RouteIcon, { style: {
+															children: [
+																/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+																	type: "button",
+																	className: flow_module_css_default.connectionMain,
+																	"aria-current": active ? "true" : "false",
+																	onClick: () => {
+																		navigateRemote(connection.id);
+																	},
+																	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(ServerIcon, { className: flow_module_css_default.connectionIcon }), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+																		className: flow_module_css_default.connectionInfo,
+																		children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+																			className: flow_module_css_default.connectionLabel,
+																			children: connection.label
+																		}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+																			className: flow_module_css_default.connectionDetail,
+																			children: [
+																				/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+																					className: flow_module_css_default.connectionEndpoint,
+																					children: [
+																						connection.username,
+																						"@",
+																						connection.host,
+																						":",
+																						connection.port
+																					]
+																				}),
+																				/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+																					className: flow_module_css_default.badge,
+																					children: [connection.auth === "password" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(LockIcon, { style: {
 																						width: 11,
 																						height: 11
-																					} }),
-																					"跳板 ×",
-																					connection.jumpHosts.length
-																				]
-																			})
-																		]
+																					} }) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(KeyIcon, { style: {
+																						width: 11,
+																						height: 11
+																					} }), connection.auth === "password" ? "密码" : connection.auth === "agent" ? "Agent" : "私钥"]
+																				}),
+																				connection.jumpHosts.length > 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+																					className: flow_module_css_default.badge,
+																					title: connection.jumpHosts.join(" → "),
+																					children: [
+																						/* @__PURE__ */ (0, react_jsx_runtime.jsx)(RouteIcon, { style: {
+																							width: 11,
+																							height: 11
+																						} }),
+																						"跳板 ×",
+																						connection.jumpHosts.length
+																					]
+																				}),
+																				typeof connection.workspaceCount === "number" && (connection.workspaceCount > 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+																					className: flow_module_css_default.badgeUsed,
+																					title: `${connection.workspaceCount} 个工作区使用这条连接；删除会让它们无法访问远端`,
+																					children: [connection.workspaceCount, " 工作区"]
+																				}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+																					className: flow_module_css_default.badgeIdle,
+																					title: "没有工作区使用这条连接，可以安全删除",
+																					children: "未使用"
+																				}))
+																			]
+																		})]
 																	})]
-																})]
-															}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-																type: "button",
-																className: flow_module_css_default.connectionRemove,
-																"aria-label": `删除连接 ${connection.label}`,
-																title: "删除连接",
-																onClick: () => {
-																	setDeleteTarget(connection);
-																},
-																children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(TrashIcon, { style: {
-																	width: 14,
-																	height: 14
-																} })
-															})]
+																}),
+																/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+																	type: "button",
+																	className: flow_module_css_default.connectionAction,
+																	"aria-label": `断开连接 ${connection.label}`,
+																	title: "断开（保留连接与工作区，下次使用自动重连）",
+																	disabled: linkBusyId !== null,
+																	onClick: () => {
+																		disconnectConnection(connection.id);
+																	},
+																	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(CloseIcon, { style: {
+																		width: 14,
+																		height: 14
+																	} })
+																}),
+																/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+																	type: "button",
+																	className: flow_module_css_default.connectionAction,
+																	"aria-label": `重连 ${connection.label}`,
+																	title: "重连（断开后立即重新建立，并验证可达）",
+																	disabled: linkBusyId !== null,
+																	onClick: () => {
+																		reconnectConnection(connection.id);
+																	},
+																	children: linkBusyId === connection.id ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(SpinnerIcon, { style: {
+																		width: 14,
+																		height: 14
+																	} }) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(RefreshIcon, { style: {
+																		width: 14,
+																		height: 14
+																	} })
+																}),
+																/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+																	type: "button",
+																	className: flow_module_css_default.connectionRemove,
+																	"aria-label": `删除连接 ${connection.label}`,
+																	title: "删除连接",
+																	onClick: () => {
+																		setDeleteTarget(connection);
+																	},
+																	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(TrashIcon, { style: {
+																		width: 14,
+																		height: 14
+																	} })
+																})
+															]
 														}, connection.id);
 													})
+												}),
+												linkNote !== null && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+													className: linkNote.kind === "ok" ? flow_module_css_default.connectionNote : flow_module_css_default.connectionNoteError,
+													role: "status",
+													children: linkNote.text
 												})
 											]
 										}),
@@ -2144,25 +2275,37 @@ window.__ModuleLoader__.load({
 								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 									className: flow_module_css_default.confirmIconWrap,
 									children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(TrashIcon, {})
-								}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("h3", {
-									className: flow_module_css_default.formTitle,
-									children: [
-										"删除连接「",
-										deleteTarget.label,
-										"」？"
-									]
-								}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("p", {
-									className: flow_module_css_default.confirmText,
-									children: [
-										"将移除 ",
-										deleteTarget.username,
-										"@",
-										deleteTarget.host,
-										":",
-										deleteTarget.port,
-										" 的注册信息；删除后需要重新添加才能再次连接。"
-									]
-								})] })]
+								}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", { children: [
+									/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("h3", {
+										className: flow_module_css_default.formTitle,
+										children: [
+											"删除连接「",
+											deleteTarget.label,
+											"」？"
+										]
+									}),
+									/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("p", {
+										className: flow_module_css_default.confirmText,
+										children: [
+											"将移除 ",
+											deleteTarget.username,
+											"@",
+											deleteTarget.host,
+											":",
+											deleteTarget.port,
+											" 的注册信息；删除后需要重新添加才能再次连接。"
+										]
+									}),
+									typeof deleteTarget.workspaceCount === "number" && deleteTarget.workspaceCount > 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("p", {
+										className: flow_module_css_default.confirmWarn,
+										role: "alert",
+										children: [
+											"⚠️ 仍有 ",
+											deleteTarget.workspaceCount,
+											" 个工作区通过这条连接访问远端；删除后它们会失效（工作区记录不会一并删除）。"
+										]
+									})
+								] })]
 							}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 								className: flow_module_css_default.formActions,
 								children: [
